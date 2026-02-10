@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vue-to-tsx Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1e1e2e; color: #cdd6f4; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 12px 20px; background: #181825; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 16px; font-weight: 600; }
+    button { background: #89b4fa; color: #1e1e2e; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
+    button:hover { background: #74c7ec; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .panels { display: flex; flex: 1; overflow: hidden; }
+    .panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #313244; }
+    .panel:last-child { border-right: none; }
+    .panel-header { padding: 8px 12px; background: #181825; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #a6adc8; border-bottom: 1px solid #313244; }
+    textarea { flex: 1; background: #1e1e2e; color: #cdd6f4; border: none; padding: 12px; font-family: "SF Mono", "Fira Code", monospace; font-size: 13px; resize: none; outline: none; tab-size: 2; }
+    textarea:focus { background: #11111b; }
+    textarea[readonly] { color: #a6adc8; }
+    #warnings { padding: 8px 12px; background: #181825; border-top: 1px solid #313244; font-size: 12px; min-height: 32px; max-height: 100px; overflow-y: auto; }
+    #warnings:empty::before { content: "No warnings"; color: #585b70; }
+    .warn-item { color: #fab387; margin: 2px 0; }
+    .error-item { color: #f38ba8; margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>vue-to-tsx Playground</h1>
+    <button id="convert-btn">Convert</button>
+    <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="llm-toggle" /> LLM fallback
+    </label>
+  </header>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">Vue SFC Input</div>
+      <textarea id="input" spellcheck="false" placeholder="Paste your .vue file here..."><template>
+  <div class="greeting">
+    <h1>{{ msg }}</h1>
+  </div>
+</template>
+
+<script setup lang="ts">
+const msg = 'Hello, TSX!'
+</script>
+
+<style scoped>
+.greeting { color: blue; }
+</style></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-header">TSX Output</div>
+      <textarea id="tsx-output" readonly spellcheck="false"></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-header">CSS Module Output</div>
+      <textarea id="css-output" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+  <div id="warnings"></div>
+
+  <script>
+    const inputEl = document.getElementById('input');
+    const tsxEl = document.getElementById('tsx-output');
+    const cssEl = document.getElementById('css-output');
+    const warningsEl = document.getElementById('warnings');
+    const convertBtn = document.getElementById('convert-btn');
+    const llmToggle = document.getElementById('llm-toggle');
+
+    convertBtn.addEventListener('click', async () => {
+      convertBtn.disabled = true;
+      convertBtn.textContent = 'Converting...';
+      warningsEl.innerHTML = '';
+      tsxEl.value = '';
+      cssEl.value = '';
+
+      try {
+        const resp = await fetch('/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: inputEl.value,
+            options: {
+              componentName: 'Component',
+              llm: llmToggle.checked,
+            },
+          }),
+        });
+
+        const data = await resp.json();
+
+        if (data.error) {
+          warningsEl.innerHTML = '<div class="error-item">' + escapeHtml(data.error) + '</div>';
+          return;
+        }
+
+        tsxEl.value = data.tsx || '';
+        cssEl.value = data.css || '';
+
+        if (data.warnings && data.warnings.length > 0) {
+          warningsEl.innerHTML = data.warnings
+            .map(w => '<div class="warn-item">' + escapeHtml(w.message) + '</div>')
+            .join('');
+        }
+      } catch (err) {
+        warningsEl.innerHTML = '<div class="error-item">' + escapeHtml(err.message) + '</div>';
+      } finally {
+        convertBtn.disabled = false;
+        convertBtn.textContent = 'Convert';
+      }
+    });
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
