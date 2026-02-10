@@ -10,6 +10,7 @@ function makeCtx(): JsxContext {
     warnings: [],
     fallbacks: [],
     componentName: 'Test',
+    usedContextMembers: new Set(),
   };
 }
 

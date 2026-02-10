@@ -10,6 +10,7 @@ function makeCtx(): JsxContext {
     warnings: [],
     fallbacks: [],
     componentName: 'Test',
+    usedContextMembers: new Set(),
   };
 }
 
@@ -116,5 +117,48 @@ describe('processEvent', () => {
     const result = processEvent(dir, makeCtx());
     expect(result.name).toBe('onScroll');
     expect(result.value).toBe('handler');
+  });
+
+  // --- Arrow function / function expression handlers should NOT be double-wrapped ---
+
+  test('arrow function handler is not double-wrapped', () => {
+    const dir = getEventDirective(
+      `<input @input="(event: CustomEvent) => (showX = event.detail.value)" />`,
+    );
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe('onInput');
+    expect(result.value).toBe('(event: CustomEvent) => (showX = event.detail.value)');
+  });
+
+  test('simple arrow function is not double-wrapped', () => {
+    const dir = getEventDirective(`<button @click="() => doSomething()">click</button>`);
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe('onClick');
+    expect(result.value).toBe('() => doSomething()');
+  });
+
+  test('arrow function with single param is not double-wrapped', () => {
+    const dir = getEventDirective(`<button @click="(e) => handle(e)">click</button>`);
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe('onClick');
+    expect(result.value).toBe('(e) => handle(e)');
+  });
+
+  test('function expression is not double-wrapped', () => {
+    const dir = getEventDirective(
+      `<button @click="function(e) { handle(e) }">click</button>`,
+    );
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe('onClick');
+    expect(result.value).toBe('function(e) { handle(e) }');
+  });
+
+  test('arrow function with modifier uses withModifiers correctly', () => {
+    const dir = getEventDirective(
+      `<button @click.prevent="(e) => handle(e)">click</button>`,
+    );
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe('onClick');
+    expect(result.value).toBe("withModifiers((e) => handle(e), ['prevent'])");
   });
 });

@@ -135,6 +135,67 @@ describe('convert() error handling', () => {
   });
 });
 
+describe('template globals and setup context', () => {
+  test('$attrs in template adds attrs to setup context', async () => {
+    const result = await convert(
+      `<template><div v-bind="$attrs" /></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'AttrsTest' },
+    );
+    expect(result.tsx).toContain('{...attrs}');
+    expect(result.tsx).not.toContain('$attrs');
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*attrs/);
+  });
+
+  test('$slots in template adds slots to setup context', async () => {
+    const result = await convert(
+      `<template><div v-if="$slots.header">has header</div></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'SlotsTest' },
+    );
+    expect(result.tsx).toContain('slots.header');
+    expect(result.tsx).not.toContain('$slots');
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*slots/);
+  });
+
+  test('$emit in template adds emit to setup context', async () => {
+    const result = await convert(
+      `<template><button @click="$emit('foo')">click</button></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'EmitTest' },
+    );
+    expect(result.tsx).toContain("emit('foo')");
+    expect(result.tsx).not.toContain('$emit');
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*emit/);
+  });
+
+  test('$t produces a warning', async () => {
+    const result = await convert(
+      `<template><div>{{ $t('hello') }}</div></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'I18nTest' },
+    );
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings.some(w => w.message.includes('$t'))).toBe(true);
+  });
+
+  test('$route produces a warning', async () => {
+    const result = await convert(
+      `<template><div>{{ $route.params.id }}</div></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'RouteTest' },
+    );
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings.some(w => w.message.includes('$route'))).toBe(true);
+  });
+
+  test('<slot> and $slots both use slots consistently', async () => {
+    const result = await convert(
+      `<template><div><slot /><div v-if="$slots.footer">footer present</div></div></template><script setup lang="ts">\nconst x = 1\n</script>`,
+      { componentName: 'SlotConsistency' },
+    );
+    expect(result.tsx).toContain('slots.default');
+    expect(result.tsx).toContain('slots.footer');
+    expect(result.tsx).not.toContain('$slots');
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*slots/);
+  });
+});
+
 describe('fixture comparison', () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, 'input.vue')),

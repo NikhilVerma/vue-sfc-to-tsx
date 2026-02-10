@@ -53,9 +53,10 @@ export function scriptToDefineComponent(
   parsed: ParsedSFC,
   jsxBody: string,
   additionalImports: ImportInfo[] = [],
+  usedContextMembers: Set<string> = new Set(),
 ): string {
   if (parsed.scriptSetup) {
-    return fromScriptSetup(parsed, jsxBody, additionalImports);
+    return fromScriptSetup(parsed, jsxBody, additionalImports, usedContextMembers);
   }
 
   if (parsed.script) {
@@ -85,6 +86,7 @@ function fromScriptSetup(
   parsed: ParsedSFC,
   jsxBody: string,
   additionalImports: ImportInfo[],
+  usedContextMembers: Set<string> = new Set(),
 ): string {
   const macros = extractMacros(parsed.scriptSetup!.content, parsed.scriptSetup!.lang);
 
@@ -134,9 +136,10 @@ function fromScriptSetup(
   }
 
   const ctxParts: string[] = [];
-  if (macros.slots) ctxParts.push('slots');
-  if (hasEmits) ctxParts.push('emit');
+  if (macros.slots || usedContextMembers.has('slots')) ctxParts.push('slots');
+  if (hasEmits || usedContextMembers.has('emit')) ctxParts.push('emit');
   if (macros.expose) ctxParts.push('expose');
+  if (usedContextMembers.has('attrs')) ctxParts.push('attrs');
 
   // Build the setup function signature
   let setupSig: string;

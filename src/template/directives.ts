@@ -1,4 +1,5 @@
 import type { DirectiveNode, ElementNode, JsxContext } from '../types';
+import { rewriteTemplateGlobals } from './utils';
 
 export interface DirectiveResult {
   /** JSX attribute name (if converted to an attribute) */
@@ -23,7 +24,8 @@ export function processDirective(
 ): DirectiveResult {
   const name = dir.name;
   const arg = dir.arg ? (dir.arg as any).content : undefined;
-  const exp = dir.exp ? (dir.exp as any).content : undefined;
+  const rawExp = dir.exp ? (dir.exp as any).content : undefined;
+  const exp = rawExp ? rewriteTemplateGlobals(rawExp, ctx) : undefined;
   const modifiers = dir.modifiers.map((m: any) =>
     typeof m === 'string' ? m : m.content,
   );

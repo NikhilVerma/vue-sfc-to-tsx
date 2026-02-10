@@ -41,7 +41,7 @@ export function walkChildren(children: TemplateChildNode[], ctx: JsxContext): st
 
       case 5: {
         // INTERPOLATION
-        const expr = unwrapExpression((child as any).content);
+        const expr = unwrapExpression((child as any).content, ctx);
         parts.push(`{${expr}}`);
         i++;
         break;
@@ -184,7 +184,7 @@ function renderDynamicComponent(node: ElementNode, ctx: JsxContext): string {
       prop.arg &&
       (prop.arg as any).content === 'is'
     ) {
-      componentExpr = unwrapExpression(prop.exp as any);
+      componentExpr = unwrapExpression(prop.exp as any, ctx);
       break;
     }
   }
@@ -239,7 +239,7 @@ function processAllProps(node: ElementNode, ctx: JsxContext): ProcessedProps {
       continue;
 
     if (dir.name === 'show') {
-      wrapShow = dir.exp ? unwrapExpression(dir.exp as any) : 'true';
+      wrapShow = dir.exp ? unwrapExpression(dir.exp as any, ctx) : 'true';
       continue;
     }
 

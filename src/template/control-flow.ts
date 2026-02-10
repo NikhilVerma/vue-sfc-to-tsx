@@ -4,6 +4,7 @@ import type {
   DirectiveNode,
   JsxContext,
 } from '../types';
+import { rewriteTemplateGlobals } from './utils';
 
 // NodeTypes from @vue/compiler-core
 const ELEMENT = 1;
@@ -45,7 +46,7 @@ export function processConditionalChain(
   const ifNode = siblings[startIndex] as ElementNode;
   const ifDir = findDirective(ifNode, 'if')!;
   branches.push({
-    condition: ifDir.exp ? (ifDir.exp as any).content : 'true',
+    condition: ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : 'true',
     node: ifNode,
   });
 
@@ -69,7 +70,7 @@ export function processConditionalChain(
 
     if (elseIfDir) {
       branches.push({
-        condition: elseIfDir.exp ? (elseIfDir.exp as any).content : 'true',
+        condition: elseIfDir.exp ? rewriteTemplateGlobals((elseIfDir.exp as any).content, ctx) : 'true',
         node: sibling as ElementNode,
       });
       consumed++;
@@ -149,7 +150,7 @@ export function processVFor(
   renderElement: (node: ElementNode, ctx: JsxContext) => string,
 ): string {
   const forDir = findDirective(node, 'for')!;
-  const expr = forDir.exp ? (forDir.exp as any).content : '';
+  const expr = forDir.exp ? rewriteTemplateGlobals((forDir.exp as any).content, ctx) : '';
   const { iterator, iterable } = parseVForExpression(expr);
 
   // Check for :key binding
@@ -166,7 +167,7 @@ export function processVFor(
 
   let body: string;
   if (ifDir) {
-    const condition = ifDir.exp ? (ifDir.exp as any).content : 'true';
+    const condition = ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : 'true';
     body = `${condition} ? ${rendered} : null`;
   } else {
     body = rendered;

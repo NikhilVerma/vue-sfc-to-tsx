@@ -11,6 +11,7 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
     warnings: [],
     fallbacks: [],
     componentName: 'TestComponent',
+    usedContextMembers: new Set(),
   };
 }
 

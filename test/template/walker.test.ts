@@ -11,6 +11,7 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
     warnings: [],
     fallbacks: [],
     componentName: 'TestComponent',
+    usedContextMembers: new Set(),
   };
 }
 
@@ -139,5 +140,42 @@ describe('template fragments', () => {
     expect(inner).toBeDefined();
     const result = walkChildren([inner!], makeCtx());
     expect(result).toBe('<><div>a</div><div>b</div></>');
+  });
+});
+
+describe('template globals rewriting', () => {
+  test('$attrs in v-bind spread becomes attrs', () => {
+    const result = toJsx('<div v-bind="$attrs" />');
+    expect(result).toBe('<div {...attrs} />');
+  });
+
+  test('$attrs in expression becomes attrs', () => {
+    const jsx = toJsx('<div :class="$attrs.class" />');
+    expect(jsx).toContain('attrs.class');
+    expect(jsx).not.toContain('$attrs');
+  });
+
+  test('$slots in v-if expression becomes slots', () => {
+    const jsx = toJsx('<div v-if="$slots.header">has header</div>');
+    expect(jsx).toContain('slots.header');
+    expect(jsx).not.toContain('$slots');
+  });
+
+  test('$emit in event handler becomes emit', () => {
+    const jsx = toJsx('<button @click="$emit(\'foo\')">click</button>');
+    expect(jsx).toContain("emit('foo')");
+    expect(jsx).not.toContain('$emit');
+  });
+
+  test('$props in expression becomes props', () => {
+    const jsx = toJsx('<div :class="$props.active">text</div>');
+    expect(jsx).toContain('props.active');
+    expect(jsx).not.toContain('$props');
+  });
+
+  test('interpolation with $slots is rewritten', () => {
+    const jsx = toJsx('<div>{{ $slots.default ? "yes" : "no" }}</div>');
+    expect(jsx).toContain('slots.default');
+    expect(jsx).not.toContain('$slots');
   });
 });

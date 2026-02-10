@@ -1,5 +1,5 @@
 import type { ElementNode, DirectiveNode, JsxContext } from '../types';
-import { unwrapExpression } from './utils';
+import { unwrapExpression, rewriteTemplateGlobals } from './utils';
 
 /**
  * Process a <slot> element into JSX.
@@ -48,15 +48,18 @@ export function processSlot(
       if (dir.arg && (dir.arg as any).content === 'name') continue;
       if (!dir.arg) {
         // v-bind="obj" spread on slot — pass as spread in slot props
-        const expr = unwrapExpression(dir.exp as any);
+        const expr = unwrapExpression(dir.exp as any, ctx);
         if (expr) slotProps.push(`...${expr}`);
         continue;
       }
       const propName = (dir.arg as any).content;
-      const expr = unwrapExpression(dir.exp as any);
+      const expr = unwrapExpression(dir.exp as any, ctx);
       slotProps.push(`${propName}: ${expr}`);
     }
   }
+
+  // Track that slots is used in setup context
+  ctx.usedContextMembers.add('slots');
 
   const propsArg = slotProps.length > 0 ? `{ ${slotProps.join(', ')} }` : '';
   const slotAccess = isDynamicName

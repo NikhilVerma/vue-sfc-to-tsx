@@ -1,4 +1,4 @@
-import type { SimpleExpressionNode, CompoundExpressionNode } from '../types';
+import type { SimpleExpressionNode, CompoundExpressionNode, JsxContext } from '../types';
 
 /** Convert kebab-case to camelCase */
 export function toCamelCase(str: string): string {
@@ -17,27 +17,84 @@ export function toJsxEventName(event: string): string {
   return 'on' + camel.charAt(0).toUpperCase() + camel.slice(1);
 }
 
-/** Extract expression string from a SimpleExpressionNode or CompoundExpressionNode */
+/** Extract expression string from a SimpleExpressionNode or CompoundExpressionNode.
+ *  When ctx is provided, rewrites Vue template globals ($attrs, $slots, etc.). */
 export function unwrapExpression(
   node: SimpleExpressionNode | CompoundExpressionNode | undefined,
+  ctx?: JsxContext,
 ): string {
   if (!node) return '';
+  let result: string;
   // SimpleExpressionNode (type 4) has content
   if (node.type === 4) {
-    return (node as SimpleExpressionNode).content;
-  }
-  // CompoundExpressionNode (type 8) has children that are strings or expression nodes
-  if (node.type === 8) {
+    result = (node as SimpleExpressionNode).content;
+  } else if (node.type === 8) {
+    // CompoundExpressionNode (type 8) has children that are strings or expression nodes
     const compound = node as CompoundExpressionNode;
-    return compound.children
+    result = compound.children
       .map((child) => {
         if (typeof child === 'string') return child;
         if (typeof child === 'symbol') return '';
         return unwrapExpression(child as SimpleExpressionNode | CompoundExpressionNode);
       })
       .join('');
+  } else {
+    result = '';
   }
-  return '';
+  if (ctx && result) {
+    result = rewriteTemplateGlobals(result, ctx);
+  }
+  return result;
+}
+
+/** Rewritable Vue template globals → Composition API equivalents */
+const TEMPLATE_GLOBALS: Record<string, { replacement: string; contextMember: string }> = {
+  '$attrs': { replacement: 'attrs', contextMember: 'attrs' },
+  '$slots': { replacement: 'slots', contextMember: 'slots' },
+  '$emit': { replacement: 'emit', contextMember: 'emit' },
+  '$props': { replacement: 'props', contextMember: 'props' },
+};
+
+/** Framework globals that produce a warning instead of rewriting */
+const WARN_GLOBALS = ['$t', '$route', '$router', '$i18n', '$refs'];
+
+/**
+ * Rewrite Vue template globals in an expression string.
+ * Replaces $attrs → attrs, $slots → slots, $emit → emit, $props → props.
+ * Adds warnings for framework-specific globals like $t, $route, etc.
+ */
+export function rewriteTemplateGlobals(expr: string, ctx: JsxContext): string {
+  let result = expr;
+
+  // Rewrite known globals using word-boundary-aware replacement
+  for (const [global, { replacement, contextMember }] of Object.entries(TEMPLATE_GLOBALS)) {
+    // Use regex to match the global as a standalone token (not inside another identifier)
+    const escaped = global.replace('$', '\\$');
+    const regex = new RegExp(escaped + '(?![a-zA-Z0-9_])', 'g');
+    if (regex.test(result)) {
+      result = result.replace(regex, replacement);
+      // Don't add 'props' to context members since props is already a setup param
+      if (contextMember !== 'props') {
+        ctx.usedContextMembers.add(contextMember);
+      }
+    }
+  }
+
+  // Warn about framework globals
+  for (const global of WARN_GLOBALS) {
+    const escaped = global.replace('$', '\\$');
+    const regex = new RegExp(escaped + '(?![a-zA-Z0-9_])', 'g');
+    if (regex.test(expr)) {
+      const alreadyWarned = ctx.warnings.some(w => w.message.includes(global));
+      if (!alreadyWarned) {
+        ctx.warnings.push({
+          message: `Template global '${global}' detected. You may need to add the equivalent Composition API call to your setup function.`,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /** Escape special characters for JSX text content */

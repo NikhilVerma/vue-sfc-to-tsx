@@ -141,4 +141,6 @@ export interface JsxContext {
   fallbacks: FallbackItem[];
   /** Component name */
   componentName: string;
+  /** Setup context members used in the template (slots, attrs, emit) */
+  usedContextMembers: Set<string>;
 }

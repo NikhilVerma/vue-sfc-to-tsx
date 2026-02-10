@@ -47,6 +47,7 @@ export async function convert(
     warnings: [],
     fallbacks: [],
     componentName,
+    usedContextMembers: new Set(),
   };
 
   // 4. Generate JSX body from template
@@ -67,7 +68,7 @@ export async function convert(
   }
 
   // 7. Generate the full TSX output via script module
-  let tsx = scriptToDefineComponent(parsed, jsxBody, additionalImports);
+  let tsx = scriptToDefineComponent(parsed, jsxBody, additionalImports, ctx.usedContextMembers);
 
   // 8. LLM fallback resolution (if enabled and there are fallbacks)
   if (options?.llm && ctx.fallbacks.length > 0) {

@@ -128,7 +128,7 @@ function generateBindDirective(
   ctx: JsxContext,
 ): { type: 'attr' | 'spread'; value: string } | null {
   const { arg, exp, modifiers } = directive;
-  const expr = unwrapExpression(exp);
+  const expr = unwrapExpression(exp, ctx);
 
   // v-bind="obj" (no arg) → spread
   if (!arg) {
@@ -226,7 +226,7 @@ function generateOnDirective(
   ctx: JsxContext,
 ): { type: 'attr'; value: string } | null {
   const { arg, exp, modifiers } = directive;
-  const expr = unwrapExpression(exp);
+  const expr = unwrapExpression(exp, ctx);
   const eventName = arg ? unwrapExpression(arg as any) : '';
 
   if (!eventName) return null;
@@ -240,7 +240,7 @@ function generateOnDirective(
 
   // Simple identifier or member expression: onClick={handler}
   // Inline expression (contains parentheses, operators, etc.): onClick={() => expr}
-  if (isSimpleExpression(expr)) {
+  if (isSimpleExpression(expr) || isFunctionExpression(expr)) {
     return { type: 'attr', value: `${jsxName}={${expr}}` };
   }
 
@@ -251,6 +251,15 @@ function generateOnDirective(
 /** Check if an expression is a simple identifier or member access (no function call or complex expression) */
 function isSimpleExpression(expr: string): boolean {
   return /^[a-zA-Z_$][\w$.]*$/.test(expr);
+}
+
+/** Check if an expression is already a function (arrow function or function expression). */
+function isFunctionExpression(expr: string): boolean {
+  const trimmed = expr.trim();
+  if (trimmed.startsWith('function')) return true;
+  if (trimmed.startsWith('(') && trimmed.includes('=>')) return true;
+  if (/^[\w$]+\s*=>/.test(trimmed)) return true;
+  return false;
 }
 
 /**

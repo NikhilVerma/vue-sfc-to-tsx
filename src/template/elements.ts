@@ -53,7 +53,7 @@ function generateDynamicComponent(node: ElementNode, ctx: JsxContext): string {
       prop.arg &&
       (prop.arg as any).content === 'is'
     ) {
-      componentExpr = unwrapExpression(prop.exp as any);
+      componentExpr = unwrapExpression(prop.exp as any, ctx);
       break;
     }
   }
@@ -129,7 +129,7 @@ function handleTextNode(node: { content: string }): string {
   return escapeJsxText(text);
 }
 
-function handleInterpolation(node: { content: any }): string {
-  const expr = unwrapExpression(node.content);
+function handleInterpolation(node: { content: any }, ctx?: import('../types').JsxContext): string {
+  const expr = unwrapExpression(node.content, ctx);
   return `{${expr}}`;
 }

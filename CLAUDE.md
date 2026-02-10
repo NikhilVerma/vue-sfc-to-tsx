@@ -59,3 +59,10 @@ test/
 
 - Linting: `oxlint src/`
 - Formatting: manual (no auto-formatter configured)
+
+## Development ethos
+
+- **TDD (Test-Driven Development)**: Always write a failing test first before fixing a bug. Every bug fix must include a regression test.
+- Run `bun test` before and after every change
+- Test fixtures in `test/fixtures/` are end-to-end integration tests
+- Unit tests go in `test/template/`, `test/script/`, etc.
