@@ -35,11 +35,17 @@ vue-to-tsx src/components/MyComponent.vue
 # Convert a directory recursively
 vue-to-tsx src/components/
 
+# Convert and delete original .vue files (in-place replacement)
+vue-to-tsx src/components/ --delete
+
 # Convert with LLM fallback for complex patterns
 vue-to-tsx src/components/ --llm
 
 # Write output to a specific directory
 vue-to-tsx src/components/ --out-dir converted/
+
+# Preview what would happen without writing anything
+vue-to-tsx src/components/ --dry-run --delete
 ```
 
 ## Library API

@@ -8,6 +8,7 @@ interface CliOptions {
   outDir: string | null;
   llm: boolean;
   dryRun: boolean;
+  delete: boolean;
   help: boolean;
 }
 
@@ -24,6 +25,7 @@ Options:
   --out-dir <dir>  Output directory (default: same directory as input)
   --llm            Enable LLM fallback for unconvertible patterns
   --dry-run        Show what would be written without writing files
+  --delete         Delete original .vue files after successful conversion
   --help           Show this help message
 
 Examples:
@@ -39,6 +41,7 @@ function parseArgs(argv: string[]): CliOptions {
     outDir: null,
     llm: false,
     dryRun: false,
+    delete: false,
     help: false,
   };
 
@@ -50,6 +53,8 @@ function parseArgs(argv: string[]): CliOptions {
       opts.llm = true;
     } else if (arg === '--dry-run') {
       opts.dryRun = true;
+    } else if (arg === '--delete') {
+      opts.delete = true;
     } else if (arg === '--out-dir') {
       i++;
       if (!args[i]) {
@@ -119,6 +124,7 @@ async function main() {
   }
 
   let converted = 0;
+  let deleted = 0;
   let warnings = 0;
   let errors = 0;
 
@@ -154,6 +160,9 @@ async function main() {
         if (cssPath) {
           console.log(`[dry-run] ${file} → ${cssPath}`);
         }
+        if (opts.delete) {
+          console.log(`[dry-run] would delete ${file}`);
+        }
       } else {
         await Bun.write(tsxPath, result.tsx);
         if (cssPath && result.css) {
@@ -162,6 +171,12 @@ async function main() {
         console.log(`${file} → ${tsxPath}`);
         if (cssPath) {
           console.log(`${file} → ${cssPath}`);
+        }
+        if (opts.delete) {
+          const { unlink } = await import('fs/promises');
+          await unlink(file);
+          deleted++;
+          console.log(`  deleted ${file}`);
         }
       }
 
@@ -172,9 +187,10 @@ async function main() {
     }
   }
 
-  console.log(
-    `\nDone: ${converted} file(s) converted, ${warnings} warning(s), ${errors} error(s).`,
-  );
+  const parts = [`${converted} file(s) converted`];
+  if (deleted > 0) parts.push(`${deleted} deleted`);
+  parts.push(`${warnings} warning(s)`, `${errors} error(s)`);
+  console.log(`\nDone: ${parts.join(', ')}.`);
 
   if (errors > 0) {
     process.exit(1);

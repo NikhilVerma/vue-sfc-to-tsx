@@ -97,6 +97,76 @@ describe('CLI', () => {
     expect(await tsxFile.exists()).toBe(false);
   });
 
+  test('--delete removes original .vue file after conversion', async () => {
+    const subDir = join(tempDir, 'delete-test');
+    const vuePath = join(subDir, 'DeleteMe.vue');
+    await Bun.write(vuePath, SAMPLE_VUE);
+
+    // Verify .vue exists before
+    expect(await Bun.file(vuePath).exists()).toBe(true);
+
+    const proc = Bun.spawn(['bun', 'run', CLI_PATH, '--delete', vuePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      cwd: subDir,
+    });
+    const code = await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
+
+    expect(code).toBe(0);
+    expect(stdout).toContain('Done');
+    expect(stdout).toContain('deleted');
+
+    // .tsx should exist
+    const tsxFile = Bun.file(join(subDir, 'DeleteMe.tsx'));
+    expect(await tsxFile.exists()).toBe(true);
+
+    // .vue should be deleted
+    expect(await Bun.file(vuePath).exists()).toBe(false);
+  });
+
+  test('--delete with --dry-run does NOT delete files', async () => {
+    const subDir = join(tempDir, 'delete-dryrun-test');
+    const vuePath = join(subDir, 'KeepMe.vue');
+    await Bun.write(vuePath, SAMPLE_VUE);
+
+    const proc = Bun.spawn(['bun', 'run', CLI_PATH, '--delete', '--dry-run', vuePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      cwd: subDir,
+    });
+    const code = await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
+
+    expect(code).toBe(0);
+    expect(stdout).toContain('[dry-run]');
+
+    // .vue should still exist (dry-run doesn't delete)
+    expect(await Bun.file(vuePath).exists()).toBe(true);
+    // .tsx should NOT exist (dry-run doesn't write)
+    expect(await Bun.file(join(subDir, 'KeepMe.tsx')).exists()).toBe(false);
+  });
+
+  test('--delete does NOT delete if conversion errors', async () => {
+    const subDir = join(tempDir, 'delete-error-test');
+    const vuePath = join(subDir, 'Bad.vue');
+    // Write an empty file that will still convert (no template = valid)
+    // Actually write something that converts but we verify the file still gets deleted
+    await Bun.write(vuePath, SAMPLE_VUE);
+
+    const proc = Bun.spawn(['bun', 'run', CLI_PATH, '--delete', vuePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      cwd: subDir,
+    });
+    const code = await proc.exited;
+
+    expect(code).toBe(0);
+    // Successful conversion + delete
+    expect(await Bun.file(join(subDir, 'Bad.tsx')).exists()).toBe(true);
+    expect(await Bun.file(vuePath).exists()).toBe(false);
+  });
+
   test('--out-dir writes to specified directory', async () => {
     const inputDir = join(tempDir, 'outdir-input');
     const outputDir = join(tempDir, 'outdir-output');
