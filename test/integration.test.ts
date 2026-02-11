@@ -22,9 +22,9 @@ describe('convert() end-to-end', () => {
     expect(result.tsx).toContain('defineComponent');
     expect(result.tsx).toContain('setup()');
     expect(result.tsx).toContain('return () =>');
-    expect(result.tsx).toContain('{title}');
-    expect(result.tsx).toContain('{message}');
-    expect(result.tsx).toContain('id={spanId}');
+    expect(result.tsx).toContain('{title.value}');
+    expect(result.tsx).toContain('{message.value}');
+    expect(result.tsx).toContain('id={spanId.value}');
     expect(result.tsx).toContain('<input type="text" placeholder="Enter name" />');
     expect(result.tsx).toContain('class="greeting"');
     expect(result.css).toBeNull(); // no scoped styles
@@ -434,6 +434,162 @@ const show = true
     expect(result.tsx).toContain('return () => (');
     expect(result.tsx).toMatch(/<>\{show/);
     expect(result.tsx).toContain('</>');
+  });
+});
+
+describe('ref .value unwrapping in JSX', () => {
+  test('ref() variables get .value in template expressions', async () => {
+    const input = `<template>
+  <div>{{ count }}</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const count = ref(0)
+</script>`;
+    const result = await convert(input, { componentName: 'RefTest' });
+
+    expect(result.tsx).toContain('{count.value}');
+    expect(result.tsx).not.toMatch(/\{count\}(?!\.)/);
+  });
+
+  test('computed() variables get .value in template expressions', async () => {
+    const input = `<template>
+  <div>{{ doubled }}</div>
+</template>
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+const count = ref(0)
+const doubled = computed(() => count.value * 2)
+</script>`;
+    const result = await convert(input, { componentName: 'ComputedTest' });
+
+    expect(result.tsx).toContain('{doubled.value}');
+  });
+
+  test('ref used in attribute binding gets .value', async () => {
+    const input = `<template>
+  <DynamicScroller :items="visibleStatements" />
+</template>
+<script setup lang="ts">
+import { computed } from 'vue'
+const visibleStatements = computed(() => [])
+</script>`;
+    const result = await convert(input, { componentName: 'AttrTest' });
+
+    expect(result.tsx).toContain('items={visibleStatements.value}');
+  });
+
+  test('ref used in v-if condition gets .value', async () => {
+    const input = `<template>
+  <div v-if="isVisible">visible</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const isVisible = ref(true)
+</script>`;
+    const result = await convert(input, { componentName: 'VIfRef' });
+
+    expect(result.tsx).toContain('isVisible.value ?');
+  });
+
+  test('ref with member access gets .value inserted', async () => {
+    const input = `<template>
+  <div>{{ items.length }}</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const items = ref([])
+</script>`;
+    const result = await convert(input, { componentName: 'MemberTest' });
+
+    expect(result.tsx).toContain('{items.value.length}');
+  });
+
+  test('non-ref variables do NOT get .value', async () => {
+    const input = `<template>
+  <div>{{ label }}</div>
+</template>
+<script setup lang="ts">
+const label = 'hello'
+</script>`;
+    const result = await convert(input, { componentName: 'PlainTest' });
+
+    expect(result.tsx).toContain('{label}');
+    expect(result.tsx).not.toContain('label.value');
+  });
+
+  test('props do NOT get .value', async () => {
+    const input = `<template>
+  <div>{{ title }}</div>
+</template>
+<script setup lang="ts">
+const props = defineProps<{ title: string }>()
+</script>`;
+    const result = await convert(input, { componentName: 'PropsTest' });
+
+    // Props are accessed via `props.title` or directly in template as `title`
+    // but they are NOT refs
+    expect(result.tsx).not.toContain('title.value');
+  });
+
+  test('shallowRef gets .value', async () => {
+    const input = `<template>
+  <div>{{ data }}</div>
+</template>
+<script setup lang="ts">
+import { shallowRef } from 'vue'
+const data = shallowRef(null)
+</script>`;
+    const result = await convert(input, { componentName: 'ShallowTest' });
+
+    expect(result.tsx).toContain('{data.value}');
+  });
+
+  test('does not double-unwrap already .value expressions in script', async () => {
+    const input = `<template>
+  <div>{{ count }}</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const count = ref(0)
+function increment() {
+  count.value++
+}
+</script>`;
+    const result = await convert(input, { componentName: 'NoDouble' });
+
+    // Template expression should get .value
+    expect(result.tsx).toContain('{count.value}');
+    // Script body should NOT have .value doubled
+    expect(result.tsx).not.toContain('count.value.value');
+  });
+
+  test('defineModel variables get .value in template', async () => {
+    const input = `<template>
+  <div>{{ modelValue }}</div>
+</template>
+<script setup lang="ts">
+const modelValue = defineModel<string>()
+</script>`;
+    const result = await convert(input, { componentName: 'ModelRef' });
+
+    // defineModel becomes computed, which is a ref — needs .value
+    expect(result.tsx).toContain('{modelValue.value}');
+  });
+
+  test('multiple refs in one expression', async () => {
+    const input = `<template>
+  <div>{{ firstName + ' ' + lastName }}</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const firstName = ref('John')
+const lastName = ref('Doe')
+</script>`;
+    const result = await convert(input, { componentName: 'MultiRef' });
+
+    expect(result.tsx).toContain('firstName.value');
+    expect(result.tsx).toContain('lastName.value');
   });
 });
 

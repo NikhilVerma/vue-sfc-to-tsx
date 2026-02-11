@@ -94,6 +94,30 @@ export function rewriteTemplateGlobals(expr: string, ctx: JsxContext): string {
     }
   }
 
+  // Append .value to ref/computed identifiers (Vue templates auto-unwrap, JSX doesn't)
+  if (ctx.refIdentifiers.size > 0) {
+    result = appendRefValue(result, ctx.refIdentifiers);
+  }
+
+  return result;
+}
+
+/**
+ * Append `.value` to known ref identifiers in an expression.
+ * Matches standalone identifiers not preceded by `.` and not already followed by `.value`.
+ */
+function appendRefValue(expr: string, refs: Set<string>): string {
+  let result = expr;
+  for (const name of refs) {
+    // Match `name` as standalone identifier:
+    // - NOT preceded by `.` or alphanumeric (avoid obj.name)
+    // - NOT already followed by `.value`
+    const regex = new RegExp(
+      `(?<![.\\w])\\b${name}\\b(?!\\.value\\b)(?=\\s*[^(]|$)`,
+      'g',
+    );
+    result = result.replace(regex, `${name}.value`);
+  }
   return result;
 }
 

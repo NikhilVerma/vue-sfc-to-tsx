@@ -31,7 +31,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nickvdv/vuetsx.git"
+    "url": "https://github.com/NikhilVerma/vue-sfc-to-tsx.git"
   },
   "keywords": [
     "vue",

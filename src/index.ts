@@ -2,7 +2,8 @@ import type { ConvertResult, ConvertOptions, ImportInfo, JsxContext } from './ty
 import { parseSFC } from './parser';
 import { extractStyles, getStyleFilename } from './style/index';
 import { templateToJsx } from './template/index';
-import { scriptToDefineComponent } from './script/index';
+import { scriptToDefineComponent, extractMacros } from './script/index';
+import { detectRefIdentifiers } from './script/macros';
 import { generateFallbackComment, resolveFallbacks } from './llm/index';
 
 export type { ConvertResult, ConvertOptions } from './types';
@@ -40,7 +41,14 @@ export async function convert(
   const css = styleResult?.css ?? null;
   const cssFilename = styleResult ? getStyleFilename(componentName) : null;
 
-  // 3. Create JsxContext
+  // 3. Detect ref identifiers from script setup
+  let refIdentifiers = new Set<string>();
+  if (parsed.scriptSetup) {
+    const macros = extractMacros(parsed.scriptSetup.content, parsed.scriptSetup.lang);
+    refIdentifiers = detectRefIdentifiers(macros.body, macros.models);
+  }
+
+  // 4. Create JsxContext
   const ctx: JsxContext = {
     indent: 0,
     classMap,
@@ -48,6 +56,7 @@ export async function convert(
     fallbacks: [],
     componentName,
     usedContextMembers: new Set(),
+    refIdentifiers,
   };
 
   // 4. Generate JSX body from template

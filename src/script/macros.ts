@@ -526,3 +526,39 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
   return result;
 }
+
+/** Vue APIs that return a Ref (need .value in JSX) */
+const REF_CREATORS = new Set([
+  'ref',
+  'computed',
+  'shallowRef',
+  'toRef',
+  'customRef',
+  'shallowComputed',
+]);
+
+/**
+ * Detect variable names that are refs/computed from script setup body.
+ * These need `.value` appended when used in JSX (Vue templates auto-unwrap, JSX doesn't).
+ */
+export function detectRefIdentifiers(body: string, models: ModelMacro[]): Set<string> {
+  const refs = new Set<string>();
+
+  // Match: const/let/var <name> = ref( | computed( | shallowRef( | etc.
+  const re = /(?:const|let|var)\s+(\w+)\s*=\s*(\w+)\s*[<(]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const varName = m[1];
+    const fnName = m[2];
+    if (REF_CREATORS.has(fnName)) {
+      refs.add(varName);
+    }
+  }
+
+  // defineModel variables are converted to computed refs
+  for (const model of models) {
+    refs.add(model.variableName);
+  }
+
+  return refs;
+}

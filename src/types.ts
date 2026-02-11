@@ -160,4 +160,6 @@ export interface JsxContext {
   componentName: string;
   /** Setup context members used in the template (slots, attrs, emit) */
   usedContextMembers: Set<string>;
+  /** Variable names that are refs/computed and need .value in JSX */
+  refIdentifiers: Set<string>;
 }

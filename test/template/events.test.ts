@@ -11,6 +11,7 @@ function makeCtx(): JsxContext {
     fallbacks: [],
     componentName: 'Test',
     usedContextMembers: new Set(),
+    refIdentifiers: new Set(),
   };
 }
 
