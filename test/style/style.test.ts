@@ -33,7 +33,7 @@ describe("extractStyles", () => {
     expect(result!.classMap.size).toBe(0);
   });
 
-  test("classMap is always empty (no CSS modules)", () => {
+  test("classMap is always empty", () => {
     const styles: StyleBlock[] = [
       {
         content: ".btn-primary { background: blue; }",

@@ -2,9 +2,9 @@
 
 [![npm version](https://img.shields.io/npm/v/vue-to-tsx.svg)](https://www.npmjs.com/package/vue-to-tsx)
 
-Convert Vue Single File Components (`.vue`) to Vue TSX (`.tsx` + `.module.css`).
+Convert Vue Single File Components (`.vue`) to Vue TSX (`.tsx` + `.css`).
 
-This is **not** a React migration tool. The output is Vue TSX -- it stays within the Vue ecosystem, using `defineComponent`, Vue's JSX transform, and CSS modules.
+This is **not** a React migration tool. The output is Vue TSX -- it stays within the Vue ecosystem, using `defineComponent`, Vue's JSX transform, and plain CSS imports.
 
 ## Why?
 
@@ -33,7 +33,7 @@ vue-to-tsx automates the conversion so you can migrate gradually, file by file, 
 - `v-for` uses a runtime helper that supports arrays, objects, and numbers (matching Vue's runtime behavior)
 - Static `class` and dynamic `:class` merged into a single attribute (no duplicate class props)
 - `.vue` import paths automatically stripped (e.g., `import Foo from './Foo.vue'` becomes `'./Foo'`)
-- Scoped CSS to CSS modules (`.module.css`)
+- Scoped CSS extracted to plain `.css` files (side-effect import)
 - Handles complex patterns: v-if/v-else-if/v-else chains, dynamic components, named/scoped slots
 - Optional LLM fallback for patterns that can't be converted deterministically (Anthropic and OpenAI)
 - CLI for batch conversion and library API for programmatic use
@@ -107,7 +107,7 @@ const result = await convert(source, {
 });
 
 console.log(result.tsx);        // The generated .tsx file
-console.log(result.css);        // The generated .module.css file (or null)
+console.log(result.css);        // The generated .css file (or null)
 console.log(result.warnings);   // Any conversion warnings
 console.log(result.fallbacks);  // Items that need manual review
 ```
@@ -118,7 +118,7 @@ console.log(result.fallbacks);  // Items that need manual review
 
 2. **Script setup to defineComponent** -- `<script setup>` macros (`defineProps`, `defineEmits`, `defineSlots`, etc.) are extracted and rewritten into a `defineComponent` call with proper `setup()` function.
 
-3. **Scoped CSS to CSS modules** -- `<style scoped>` blocks are converted to `.module.css` files. Class references in the template are rewritten to use `styles.className` syntax.
+3. **Scoped CSS to plain CSS** -- `<style scoped>` blocks are extracted to plain `.css` files and imported as side-effect imports (`import './Component.css'`). Vue-specific pseudo-selectors (`:deep`, `:slotted`, `:global`) are stripped.
 
 4. **LLM fallback** -- When a template pattern can't be converted deterministically (e.g., complex custom directives), it's marked with a fallback comment. With `--llm` enabled, these are sent to an LLM for resolution.
 
@@ -137,7 +137,7 @@ Vue SFC templates are forgiving by design -- they silently handle things that wo
 | `$attrs`, `$slots`, `$emit` | `attrs`, `slots`, `emit` from `setup()` context | Template globals don't exist in TSX. They come from the setup function's second argument. |
 | `<script setup>` macros (`defineProps`, `defineEmits`) | `defineComponent({ props: {...}, emits: [...] })` | Compiler macros are template-only magic. TSX uses standard `defineComponent` options. Type-based `defineEmits` is converted to a runtime `emits` array. |
 | `import Foo from './Foo.vue'` | `import Foo from './Foo'` | `.vue` extensions are stripped since you're importing `.tsx` files now. |
-| `<style scoped>` | CSS modules (`.module.css`) | Scoped styles use data attributes that only work with Vue's compiler. CSS modules are a standard, framework-agnostic alternative. |
+| `<style scoped>` | Plain `.css` with side-effect import | Scoped styles use data attributes that only work with Vue's compiler. The CSS is extracted as a plain file and imported directly (`import './Component.css'`). |
 | `class="foo" :class="{ active: x }"` (two attributes) | `class={['foo', { active: x }]}` (merged) | Vue templates merge multiple `class` attributes at runtime. JSX doesn't -- duplicate props overwrite each other. The converter merges them into one. |
 
 ## Output formatting
@@ -157,7 +157,7 @@ bunx dprint fmt "src/**/*.tsx"
 
 ## LLM-powered fallback
 
-The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS modules, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vue-to-tsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
+The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS extraction, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vue-to-tsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
 
 ### What triggers the fallback
 

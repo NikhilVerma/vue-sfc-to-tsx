@@ -16,7 +16,7 @@ interface CliOptions {
 }
 
 const HELP_TEXT = `
-vue-to-tsx - Convert Vue SFCs to TSX + CSS Modules
+vue-to-tsx - Convert Vue SFCs to TSX + CSS
 
 Usage:
   vue-to-tsx [options] <glob...>
@@ -139,7 +139,7 @@ async function main() {
     process.exit(1);
   }
 
-  const stats = { converted: 0, deleted: 0, cssModules: 0, warnings: 0, fallbacks: 0, errors: 0 };
+  const stats = { converted: 0, deleted: 0, cssFiles: 0, warnings: 0, fallbacks: 0, errors: 0 };
 
   for (const file of files) {
     await convertSingleFile(file, opts, stats);
@@ -147,7 +147,7 @@ async function main() {
 
   const parts = [
     `${stats.converted} converted`,
-    `${stats.cssModules} css module${stats.cssModules !== 1 ? "s" : ""}`,
+    `${stats.cssFiles} css file${stats.cssFiles !== 1 ? "s" : ""}`,
     `${stats.deleted} deleted`,
     `${stats.warnings} warning${stats.warnings !== 1 ? "s" : ""}`,
     `${stats.fallbacks} fallback${stats.fallbacks !== 1 ? "s" : ""}`,
@@ -165,7 +165,7 @@ async function main() {
 interface ConvertStats {
   converted: number;
   deleted: number;
-  cssModules: number;
+  cssFiles: number;
   warnings: number;
   fallbacks: number;
   errors: number;
@@ -220,7 +220,7 @@ async function convertSingleFile(
       await Bun.write(tsxPath, result.tsx);
       if (cssPath && result.css) {
         await Bun.write(cssPath, result.css);
-        stats.cssModules++;
+        stats.cssFiles++;
       }
       console.log(`${file} → ${tsxPath}`);
       if (cssPath) {
@@ -256,7 +256,7 @@ function watchFiles(files: string[], opts: CliOptions) {
         const stats: ConvertStats = {
           converted: 0,
           deleted: 0,
-          cssModules: 0,
+          cssFiles: 0,
           warnings: 0,
           fallbacks: 0,
           errors: 0,

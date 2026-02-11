@@ -29,9 +29,9 @@ export type {
 export interface ConvertResult {
   /** The generated .tsx file content */
   tsx: string;
-  /** CSS module file content, if scoped styles existed */
+  /** CSS file content, if styles existed */
   css: string | null;
-  /** CSS module filename (e.g. "MyComponent.module.css") */
+  /** CSS filename (e.g. "MyComponent.css") */
   cssFilename: string | null;
   /** Warnings generated during conversion */
   warnings: ConvertWarning[];
@@ -142,7 +142,7 @@ export interface ImportInfo {
   typeOnly: boolean;
 }
 
-/** Map of original class names to CSS module references */
+/** Map of original class names to CSS class references */
 export type ClassMap = Map<string, string>;
 
 /** Style extraction result */
@@ -161,7 +161,7 @@ export interface StyleResult {
 export interface JsxContext {
   /** Indentation level */
   indent: number;
-  /** CSS module class map */
+  /** CSS class map */
   classMap: ClassMap;
   /** Accumulated warnings */
   warnings: ConvertWarning[];

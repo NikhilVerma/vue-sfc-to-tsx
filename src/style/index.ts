@@ -2,7 +2,7 @@ import type { StyleBlock, StyleResult, ClassMap } from "../types";
 
 /**
  * Process Vue-specific CSS pseudo-selectors into standard CSS.
- * Removes scoping pseudo-selectors since CSS modules handle scoping.
+ * Removes Vue-specific scoping pseudo-selectors.
  */
 function processVuePseudoSelectors(css: string): string {
   let result = css;

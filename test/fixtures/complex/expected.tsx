@@ -1,5 +1,5 @@
 import { defineComponent, ref, computed } from "vue";
-import styles from "./Complex.module.css";
+import './Complex.css'
 
 export default defineComponent({
   setup(props, { slots, emit }) {

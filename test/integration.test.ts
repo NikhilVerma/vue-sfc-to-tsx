@@ -49,7 +49,7 @@ describe("convert() end-to-end", () => {
     expect(result.tsx).not.toContain("withDefaults");
   });
 
-  test("css-modules component generates CSS and plain import", async () => {
+  test("scoped CSS component generates CSS and plain import", async () => {
     const input = readFixture("css-modules", "input.vue");
     const result = await convert(input, { componentName: "CssModules" });
 
@@ -852,7 +852,7 @@ const x = 1
     ).toBe(true);
   });
 
-  test("plain CSS gets .module.css filename", async () => {
+  test("plain CSS gets .css filename", async () => {
     const input = `<template><div class="bar">test</div></template>
 <script setup lang="ts">const x = 1</script>
 <style>.bar { color: red; }</style>`;

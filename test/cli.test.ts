@@ -189,10 +189,10 @@ describe("CLI", () => {
     expect(code).toBe(0);
     // Should show converted count
     expect(stdout).toContain("2 converted");
-    // Should show CSS modules count (StatsA has scoped style, StatsB doesn't)
-    expect(stdout).toContain("1 css module");
+    // Should show CSS files count (StatsA has scoped style, StatsB doesn't)
+    expect(stdout).toContain("1 css file");
     // Should show warnings and errors
-    // StatsA has scoped styles → produces 1 warning about CSS modules conversion
+    // StatsA has scoped styles → produces 1 warning about scoped CSS
     expect(stdout).toContain("1 warning");
     expect(stdout).toContain("0 error");
   });
