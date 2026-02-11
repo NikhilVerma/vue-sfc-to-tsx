@@ -547,7 +547,7 @@ export function detectRefIdentifiers(body: string, models: ModelMacro[]): Set<st
   while ((m = re.exec(body)) !== null) {
     const varName = m[1];
     const fnName = m[2];
-    if (REF_CREATORS.has(fnName)) {
+    if (REF_CREATORS.has(fnName) || /^use[A-Z]/.test(fnName)) {
       refs.add(varName);
     }
   }

@@ -719,6 +719,47 @@ const lastName = ref('Doe')
   });
 });
 
+describe("composable return values treated as refs", () => {
+  test("useLocalStorage return value gets .value", async () => {
+    const input = `<template>
+  <button @click="() => (gotAiInfo = true)">got it</button>
+</template>
+<script setup lang="ts">
+const gotAiInfo = useLocalStorage('ai-info', false)
+</script>`;
+    const result = await convert(input, { componentName: "ComposableRef" });
+
+    expect(result.tsx).toContain("gotAiInfo.value = true");
+    expect(result.tsx).not.toContain("gotAiInfo = true");
+  });
+
+  test("useXxx composable return value gets .value in template", async () => {
+    const input = `<template>
+  <div>{{ darkMode }}</div>
+</template>
+<script setup lang="ts">
+const darkMode = useDark()
+</script>`;
+    const result = await convert(input, { componentName: "UseDark" });
+
+    expect(result.tsx).toContain("{darkMode.value}");
+  });
+
+  test("non-use function is not treated as ref", async () => {
+    const input = `<template>
+  <div>{{ data }}</div>
+</template>
+<script setup lang="ts">
+const data = fetchData()
+</script>`;
+    const result = await convert(input, { componentName: "NonUse" });
+
+    // fetchData doesn't start with 'use', so not treated as ref
+    expect(result.tsx).toContain("{data}");
+    expect(result.tsx).not.toContain("data.value");
+  });
+});
+
 describe("ref .value does not apply to object keys", () => {
   test("object key in :style binding is not ref-unwrapped", async () => {
     const input = `<template>
