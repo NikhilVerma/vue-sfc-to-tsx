@@ -177,4 +177,6 @@ export interface JsxContext {
   propIdentifiers: Set<string>;
   /** Whether any v-for directive was encountered (triggers _renderList helper) */
   hasVFor: boolean;
+  /** Vue built-in components used in template (Teleport, KeepAlive, etc.) */
+  usedBuiltins: Set<string>;
 }

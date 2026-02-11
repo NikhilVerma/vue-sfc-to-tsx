@@ -23,6 +23,10 @@ vue-to-tsx automates the conversion so you can migrate gradually, file by file, 
 
 - Template to JSX conversion (v-if/v-for/v-show/v-model, slots, events)
 - `<script setup>` to `defineComponent` with full macro support (defineProps, defineEmits, defineSlots, defineExpose, defineOptions, defineModel)
+- Type-based `defineEmits` converted to runtime `emits` option (call signature and Vue 3.3+ shorthand forms, including kebab-case event names)
+- Automatic `.value` unwrapping for `ref`/`computed` identifiers in JSX expressions
+- Vue built-in components (`Teleport`, `KeepAlive`, `Transition`, `TransitionGroup`, `Suspense`) auto-imported from `vue`
+- `v-for` uses a runtime helper that supports arrays, objects, and numbers (matching Vue's runtime behavior)
 - Scoped CSS to CSS modules (`.module.css`)
 - Handles complex patterns: v-if/v-else-if/v-else chains, dynamic components, named/scoped slots
 - Optional LLM fallback for patterns that can't be converted deterministically (Anthropic and OpenAI)
@@ -104,7 +108,7 @@ console.log(result.fallbacks);  // Items that need manual review
 
 ## How it works
 
-1. **Template to JSX** -- The Vue template AST (from `@vue/compiler-sfc`) is walked and converted to JSX. Directives like `v-if` become ternary expressions, `v-for` becomes `.map()`, `@click` becomes `onClick`, etc.
+1. **Template to JSX** -- The Vue template AST (from `@vue/compiler-sfc`) is walked and converted to JSX. Directives like `v-if` become ternary expressions, `v-for` uses a runtime helper (`_renderList`) that handles arrays, objects, and numbers, `@click` becomes `onClick`, etc.
 
 2. **Script setup to defineComponent** -- `<script setup>` macros (`defineProps`, `defineEmits`, `defineSlots`, etc.) are extracted and rewritten into a `defineComponent` call with proper `setup()` function.
 

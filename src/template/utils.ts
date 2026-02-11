@@ -116,11 +116,12 @@ function appendRefValue(expr: string, refs: Set<string>): string {
   let result = expr;
   for (const name of refs) {
     // Match `name` as standalone identifier:
-    // - NOT preceded by `.` or alphanumeric (avoid obj.name)
+    // - NOT preceded by `.`, alphanumeric, or `-` (avoid obj.name, data-qa-node-id)
     // - NOT already followed by `.value`
+    // - NOT followed by `-` (avoid hyphenated attribute names in strings)
     // - NOT followed by optional whitespace then `:` (object key position)
     //   UNLESS the `:` is part of a ternary `?...:`
-    const regex = new RegExp(`(?<![.\\w])\\b${name}\\b(?!\\.value\\b)(?=\\s*[^(]|$)`, "g");
+    const regex = new RegExp(`(?<![.\\w-])\\b${name}\\b(?!\\.value\\b)(?!-)(?=\\s*[^(]|$)`, "g");
     result = result.replace(regex, (match, offset) => {
       // Check if this identifier is in object-key position (followed by `:`)
       const after = result.slice(offset + match.length);
@@ -155,7 +156,7 @@ function appendRefValue(expr: string, refs: Set<string>): string {
 function prefixProps(expr: string, propNames: Set<string>): string {
   let result = expr;
   for (const name of propNames) {
-    const regex = new RegExp(`(?<![.\\w])\\b${name}\\b`, "g");
+    const regex = new RegExp(`(?<![.\\w-])\\b${name}\\b(?!-)`, "g");
     result = result.replace(regex, (match, offset) => {
       // Check if already preceded by `props.`
       const before = result.slice(0, offset);
@@ -198,6 +199,15 @@ export function indent(str: string, level: number): string {
     .map((line) => (line.trim() ? spaces + line : line))
     .join("\n");
 }
+
+/** Vue built-in components that need to be imported in JSX/TSX */
+export const VUE_BUILTINS = new Set([
+  'Teleport',
+  'KeepAlive',
+  'Suspense',
+  'Transition',
+  'TransitionGroup',
+]);
 
 /** Check if a tag name represents a Vue component (not a plain HTML element) */
 export function isComponent(tag: string): boolean {

@@ -296,6 +296,38 @@ const emit = defineEmits<{
     expect(result.tsx).toContain("emits: ['update', 'delete']");
   });
 
+  test("shorthand form with quoted kebab-case event names", async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+const emit = defineEmits<{
+  selectStatement: [statement: string]
+  "select-node": [node: { selectedStatement: string; node: string }]
+  mitigate: [data: { statement: string; clause: string }]
+  "starmap-sector-clicked": [data: { starmapId: string; starmapFieldId: string; metadataName: string; title: string; clause: string }]
+}>()
+</script>`;
+    const result = await convert(input, { componentName: "EmitKebab" });
+
+    // Should only extract top-level event names, not nested object properties
+    expect(result.tsx).toContain("emits: ['selectStatement', 'select-node', 'mitigate', 'starmap-sector-clicked']");
+    // Should NOT contain nested property names as events
+    expect(result.tsx).not.toContain("'selectedStatement'");
+    expect(result.tsx).not.toContain("'starmapId'");
+  });
+
+  test("call signature form with kebab-case event names", async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+const emit = defineEmits<{
+  (e: 'select-node', data: any): void
+  (e: 'update:modelValue', val: string): void
+}>()
+</script>`;
+    const result = await convert(input, { componentName: "EmitKebabCall" });
+
+    expect(result.tsx).toContain("emits: ['select-node', 'update:modelValue']");
+  });
+
   test("runtime emits still pass through unchanged", async () => {
     const input = `<template><div>test</div></template>
 <script setup lang="ts">
@@ -304,6 +336,38 @@ const emit = defineEmits(['update', 'delete'])
     const result = await convert(input, { componentName: "EmitRuntime" });
 
     expect(result.tsx).toContain("emits: ['update', 'delete']");
+  });
+});
+
+describe("Vue built-in components import", () => {
+  test("Teleport is auto-imported from vue", async () => {
+    const input = `<template>
+  <Teleport to="body">
+    <div>modal</div>
+  </Teleport>
+</template>
+<script setup lang="ts">
+const x = 1
+</script>`;
+    const result = await convert(input, { componentName: "TeleportTest" });
+
+    expect(result.tsx).toContain("Teleport");
+    expect(result.tsx).toMatch(/import\s*\{[^}]*Teleport[^}]*\}\s*from\s*'vue'/);
+    expect(result.tsx).toContain("<Teleport");
+  });
+
+  test("KeepAlive is auto-imported from vue", async () => {
+    const input = `<template>
+  <KeepAlive>
+    <div>cached</div>
+  </KeepAlive>
+</template>
+<script setup lang="ts">
+const x = 1
+</script>`;
+    const result = await convert(input, { componentName: "KeepAliveTest" });
+
+    expect(result.tsx).toMatch(/import\s*\{[^}]*KeepAlive[^}]*\}\s*from\s*'vue'/);
   });
 });
 
@@ -589,6 +653,22 @@ const data = shallowRef(null)
     const result = await convert(input, { componentName: "ShallowTest" });
 
     expect(result.tsx).toContain("{data.value}");
+  });
+
+  test("ref inside hyphenated attribute name in template literal is not unwrapped", async () => {
+    const input = `<template>
+  <FDialog :target="\`[data-qa-node-id='\${node.id}']\`" />
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const node = ref({ id: '123' })
+</script>`;
+    const result = await convert(input, { componentName: "HyphenAttr" });
+
+    // node.id inside ${...} should get .value: node.value.id
+    // But "node" inside the string "data-qa-node-id" should NOT get .value
+    expect(result.tsx).toContain("node.value.id");
+    expect(result.tsx).not.toContain("node.value-id");
   });
 
   test("does not double-unwrap already .value expressions in script", async () => {

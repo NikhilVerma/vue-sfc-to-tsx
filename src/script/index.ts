@@ -132,7 +132,7 @@ function parseEmitTypes(typeStr: string): string[] {
   const names: string[] = [];
 
   // Call signature form: (e: 'eventName', ...) => extract 'eventName'
-  const callSigRe = /\(\s*e\s*:\s*['"](\w+)['"]/g;
+  const callSigRe = /\(\s*e\s*:\s*['"]([\w\-:]+)['"]/g;
   let match: RegExpExecArray | null;
   while ((match = callSigRe.exec(typeStr)) !== null) {
     names.push(match[1]);
@@ -140,12 +140,31 @@ function parseEmitTypes(typeStr: string): string[] {
 
   if (names.length > 0) return names;
 
-  // Shorthand property form: { foo: [...]; bar: [...] }
-  const shorthandRe = /^\s*(\w+)\s*:/gm;
-  // Strip outer braces first
-  const body = typeStr.replace(/^\s*\{/, "").replace(/\}\s*$/, "");
-  while ((match = shorthandRe.exec(body)) !== null) {
-    names.push(match[1]);
+  // Shorthand property form: { foo: [...]; "bar-baz": [...] }
+  // Must only match top-level properties (depth 0), not nested object properties
+  const body = typeStr.replace(/^\s*\{/, '').replace(/\}\s*$/, '');
+  let depth = 0;
+  let i = 0;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === '{' || ch === '[' || ch === '(') {
+      depth++;
+      i++;
+    } else if (ch === '}' || ch === ']' || ch === ')') {
+      depth--;
+      i++;
+    } else if (depth === 0) {
+      const rest = body.slice(i);
+      const propMatch = rest.match(/^(?:["']([\w\-:]+)["']|([\w]+))\s*:/);
+      if (propMatch) {
+        names.push(propMatch[1] ?? propMatch[2]);
+        i += propMatch[0].length;
+      } else {
+        i++;
+      }
+    } else {
+      i++;
+    }
   }
 
   return names;

@@ -82,6 +82,7 @@ export async function convert(source: string, options?: ConvertOptions): Promise
     refIdentifiers,
     propIdentifiers,
     hasVFor: false,
+    usedBuiltins: new Set(),
   };
 
   // 4. Generate JSX body from template
@@ -98,6 +99,17 @@ export async function convert(source: string, options?: ConvertOptions): Promise
       namedImports: [],
       typeOnly: false,
     });
+  }
+
+  // 6. Add imports for Vue built-in components used in template (Teleport, KeepAlive, etc.)
+  if (ctx.usedBuiltins.size > 0) {
+    for (const builtin of ctx.usedBuiltins) {
+      additionalImports.push({
+        source: 'vue',
+        namedImports: [{ imported: builtin, local: builtin }],
+        typeOnly: false,
+      });
+    }
   }
 
   // 7. Generate the full TSX output via script module

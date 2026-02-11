@@ -4,7 +4,7 @@ import { processConditionalChain, processVFor, findDirective } from "./control-f
 import { processSlot, processSlotContent, formatSlotEntries } from "./slots";
 import { generateAttributes, formatAttributes } from "./attributes";
 import { processDirective } from "./directives";
-import { SELF_CLOSING_TAGS } from "./utils";
+import { SELF_CLOSING_TAGS, VUE_BUILTINS } from "./utils";
 
 /**
  * Walk an array of template child nodes and produce JSX string output.
@@ -131,6 +131,11 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
   // <component :is="expr">
   if (tag === "component") {
     return renderDynamicComponent(node, ctx);
+  }
+
+  // Track Vue built-in component usage for import generation
+  if (VUE_BUILTINS.has(tag)) {
+    ctx.usedBuiltins.add(tag);
   }
 
   // Process attributes, directives, and events
