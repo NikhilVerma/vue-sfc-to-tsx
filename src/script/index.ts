@@ -265,7 +265,12 @@ function fromScriptSetup(
   const macros = extractMacros(parsed.scriptSetup!.content, parsed.scriptSetup!.lang);
 
   // Detect auto-imported APIs (e.g., ref, computed used without explicit import)
-  const autoImported = detectAutoImports(macros.body, jsxBody, macros.imports);
+  // Include runtime props/emits strings since they may reference PropType etc.
+  const extraScanSources = [
+    macros.props?.runtime ?? '',
+    macros.emits?.runtime ?? '',
+  ].filter(Boolean).join('\n');
+  const autoImported = detectAutoImports(macros.body + '\n' + extraScanSources, jsxBody, macros.imports);
 
   // Build imports
   const allImports = [...macros.imports, ...autoImported];
@@ -392,7 +397,7 @@ function fromScriptSetup(
 
   // Hoist side-effect imports after structured imports
   if (macros.rawImports.length > 0) {
-    lines.push(macros.rawImports.join("\n"));
+    lines.push(macros.rawImports.map(s => s.replace(/\.vue(['"])/g, '$1')).join("\n"));
   }
 
   if (lines.length > 0) {

@@ -61,9 +61,11 @@ export function generateImportStatements(imports: ImportInfo[]): string {
 
   for (const imp of sorted) {
     const typePrefix = imp.typeOnly ? "type " : "";
+    // Strip .vue extension from import paths (TSX files don't import .vue)
+    const source = imp.source.replace(/\.vue$/, '');
 
     if (imp.namespaceImport) {
-      lines.push(`import ${typePrefix}* as ${imp.namespaceImport} from '${imp.source}'`);
+      lines.push(`import ${typePrefix}* as ${imp.namespaceImport} from '${source}'`);
       continue;
     }
 
@@ -82,9 +84,9 @@ export function generateImportStatements(imports: ImportInfo[]): string {
 
     if (parts.length === 0) {
       // Side-effect import
-      lines.push(`import '${imp.source}'`);
+      lines.push(`import '${source}'`);
     } else {
-      lines.push(`import ${typePrefix}${parts.join(", ")} from '${imp.source}'`);
+      lines.push(`import ${typePrefix}${parts.join(", ")} from '${source}'`);
     }
   }
 

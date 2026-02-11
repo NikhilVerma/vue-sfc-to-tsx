@@ -17,15 +17,28 @@ export interface AttributeResult {
 export function generateAttributes(node: ElementNode, ctx: JsxContext): AttributeResult {
   const attrs: string[] = [];
   const spreads: string[] = [];
+  let staticClass: string | null = null;
+  let dynamicClass: string | null = null;
 
   for (const prop of node.props) {
     if (prop.type === 6) {
       // AttributeNode (static)
-      const attr = generateStaticAttribute(prop as AttributeNode, ctx);
+      const attrNode = prop as AttributeNode;
+      // Collect static class separately for merging with dynamic :class
+      if (attrNode.name === "class" && attrNode.value?.content != null) {
+        staticClass = attrNode.value.content;
+        continue;
+      }
+      const attr = generateStaticAttribute(attrNode, ctx);
       if (attr) attrs.push(attr);
     } else if (prop.type === 7) {
       // DirectiveNode
       const directive = prop as DirectiveNode;
+      // Collect dynamic :class separately for merging with static class
+      if (directive.name === "bind" && directive.arg && (directive.arg as any).content === "class") {
+        dynamicClass = unwrapExpression(directive.exp, ctx);
+        continue;
+      }
       const result = generateDirectiveAttribute(directive, ctx);
       if (result) {
         if (result.type === "spread") {
@@ -37,7 +50,34 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
     }
   }
 
+  // Merge static and dynamic class into a single attribute
+  if (staticClass != null && dynamicClass != null) {
+    if (ctx.classMap.size > 0) {
+      // CSS modules — generate mapped static + dynamic
+      attrs.push(generateMergedClassWithMap(staticClass, dynamicClass, ctx));
+    } else {
+      attrs.push(`class={['${staticClass}', ${dynamicClass}]}`);
+    }
+  } else if (staticClass != null) {
+    if (ctx.classMap.size > 0) {
+      attrs.push(generateStaticClassAttribute(staticClass, ctx));
+    } else {
+      attrs.push(`class="${staticClass}"`);
+    }
+  } else if (dynamicClass != null) {
+    attrs.push(generateDynamicClass(dynamicClass, ctx));
+  }
+
   return { attrs, spreads };
+}
+
+function generateMergedClassWithMap(staticValue: string, dynamicExpr: string, ctx: JsxContext): string {
+  const staticPart = generateStaticClassAttribute(staticValue, ctx);
+  const dynamicPart = generateDynamicClass(dynamicExpr, ctx);
+  // Extract the expressions from class=X format
+  const staticExpr = staticPart.replace(/^class=/, '');
+  const dynamicExprClean = dynamicPart.replace(/^class=/, '');
+  return `class={[${staticExpr}, ${dynamicExprClean}]}`;
 }
 
 function generateStaticAttribute(prop: AttributeNode, ctx: JsxContext): string | null {

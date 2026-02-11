@@ -957,6 +957,116 @@ const props = defineProps<{
   });
 });
 
+describe("PropType auto-imported for runtime props", () => {
+  test("runtime defineProps using PropType gets PropType imported", async () => {
+    const input = `<template>
+  <div>test</div>
+</template>
+<script setup lang="ts">
+const props = defineProps({
+  items: { type: Array as PropType<string[]>, required: true },
+  config: { type: Object as PropType<Record<string, any>>, default: () => ({}) }
+})
+</script>`;
+    const result = await convert(input, { componentName: "PropTypeImport" });
+
+    expect(result.tsx).toMatch(/import\s*\{[^}]*PropType[^}]*\}\s*from\s*'vue'/);
+  });
+});
+
+describe("string literals not corrupted by .value or props. prefix", () => {
+  test("string comparison with prop name is not prefixed", async () => {
+    const input = `<template>
+  <div v-if="statementType === 'statement'">match</div>
+</template>
+<script setup lang="ts">
+const props = defineProps<{ statementType: string }>()
+</script>`;
+    const result = await convert(input, { componentName: "StringLit" });
+
+    // The string 'statement' should NOT become 'props.statement'
+    expect(result.tsx).toContain("=== 'statement'");
+    expect(result.tsx).not.toContain("=== 'props.statement'");
+    // But the identifier should get props. prefix
+    expect(result.tsx).toContain("props.statementType");
+  });
+
+  test("string literal containing ref name is not unwrapped", async () => {
+    const input = `<template>
+  <div :class="status === 'default' ? 'a' : 'b'">test</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const status = ref('default')
+</script>`;
+    const result = await convert(input, { componentName: "StringRef" });
+
+    // 'default' the string should NOT become 'default.value' or similar
+    expect(result.tsx).toContain("=== 'default'");
+    // But status the identifier should get .value
+    expect(result.tsx).toContain("status.value");
+  });
+
+  test("'status' in obj check is not prefixed", async () => {
+    const input = `<template>
+  <div v-if="'status' in item">has status</div>
+</template>
+<script setup lang="ts">
+const props = defineProps<{ status: string }>()
+const item = { status: 'ok' }
+</script>`;
+    const result = await convert(input, { componentName: "InCheck" });
+
+    // 'status' the string literal should NOT become 'props.status'
+    expect(result.tsx).toContain("'status' in item");
+    expect(result.tsx).not.toContain("'props.status'");
+  });
+});
+
+describe("duplicate class attributes merged", () => {
+  test("static class and dynamic :class are merged", async () => {
+    const input = `<template>
+  <div class="base-class" :class="[isActive ? 'active' : '']">test</div>
+</template>
+<script setup lang="ts">
+const isActive = true
+</script>`;
+    const result = await convert(input, { componentName: "DupClass" });
+
+    // Should NOT have two separate class attributes
+    const classMatches = result.tsx.match(/\bclass[=]/g);
+    expect(classMatches?.length).toBe(1);
+  });
+});
+
+describe(".vue import paths stripped", () => {
+  test("import from ./Foo.vue becomes ./Foo", async () => {
+    const input = `<template>
+  <Foo />
+</template>
+<script setup lang="ts">
+import Foo from './Foo.vue'
+</script>`;
+    const result = await convert(input, { componentName: "VueImport" });
+
+    expect(result.tsx).not.toContain(".vue");
+    expect(result.tsx).toContain("from './Foo'");
+  });
+
+  test("import from @/components/Bar.vue strips .vue", async () => {
+    const input = `<template>
+  <Bar />
+</template>
+<script setup lang="ts">
+import Bar from '@/components/Bar.vue'
+</script>`;
+    const result = await convert(input, { componentName: "VueImport2" });
+
+    expect(result.tsx).not.toContain(".vue");
+    expect(result.tsx).toContain("from '@/components/Bar'");
+  });
+});
+
 describe("fixture comparison", () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, "input.vue")),

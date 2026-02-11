@@ -112,6 +112,52 @@ export function rewriteTemplateGlobals(expr: string, ctx: JsxContext): string {
  * Matches standalone identifiers not preceded by `.` and not already followed by `.value`.
  * Skips identifiers in object-key position (followed by `:` that isn't part of ternary).
  */
+/**
+ * Check if a position in an expression string is inside a string literal.
+ * Handles single quotes, double quotes, and template literals (skipping ${...} interpolations).
+ */
+function isInsideString(expr: string, offset: number): boolean {
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let interpDepth = 0;
+
+  for (let i = 0; i < offset; i++) {
+    const ch = expr[i];
+    const next = expr[i + 1];
+
+    // Skip escaped characters inside any string
+    if (ch === '\\' && (inSingle || inDouble || inTemplate)) {
+      i++;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && !inTemplate) {
+      if (ch === "'") inSingle = true;
+      else if (ch === '"') inDouble = true;
+      else if (ch === '`') inTemplate = true;
+    } else if (inSingle && ch === "'") {
+      inSingle = false;
+    } else if (inDouble && ch === '"') {
+      inDouble = false;
+    } else if (inTemplate) {
+      if (ch === '`' && interpDepth === 0) {
+        inTemplate = false;
+      } else if (ch === '$' && next === '{' && interpDepth === 0) {
+        interpDepth++;
+        i++; // skip the {
+      } else if (ch === '{' && interpDepth > 0) {
+        interpDepth++;
+      } else if (ch === '}' && interpDepth > 0) {
+        interpDepth--;
+      }
+    }
+  }
+
+  // Inside a string if in single/double quotes, or in template literal but NOT inside ${...}
+  return inSingle || inDouble || (inTemplate && interpDepth === 0);
+}
+
 function appendRefValue(expr: string, refs: Set<string>): string {
   let result = expr;
   for (const name of refs) {
@@ -123,6 +169,9 @@ function appendRefValue(expr: string, refs: Set<string>): string {
     //   UNLESS the `:` is part of a ternary `?...:`
     const regex = new RegExp(`(?<![.\\w-])\\b${name}\\b(?!\\.value\\b)(?!-)(?=\\s*[^(]|$)`, "g");
     result = result.replace(regex, (match, offset) => {
+      // Skip identifiers inside string literals
+      if (isInsideString(result, offset)) return match;
+
       // Check if this identifier is in object-key position (followed by `:`)
       const after = result.slice(offset + match.length);
       const colonMatch = after.match(/^\s*:/);
@@ -158,6 +207,9 @@ function prefixProps(expr: string, propNames: Set<string>): string {
   for (const name of propNames) {
     const regex = new RegExp(`(?<![.\\w-])\\b${name}\\b(?!-)`, "g");
     result = result.replace(regex, (match, offset) => {
+      // Skip identifiers inside string literals
+      if (isInsideString(result, offset)) return match;
+
       // Check if already preceded by `props.`
       const before = result.slice(0, offset);
       if (before.endsWith("props.")) return match;
