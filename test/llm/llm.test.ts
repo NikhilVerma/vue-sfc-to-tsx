@@ -16,7 +16,7 @@ describe('generateFallbackComment', () => {
     const comment = generateFallbackComment(item);
 
     expect(comment).toBe(
-      '{/* TODO: vuetsx - Custom directive v-focus cannot be auto-converted */}\n{/* Original: <input v-focus /> */}',
+      '{/* TODO: vue-to-tsx - Custom directive v-focus cannot be auto-converted */}\n{/* Original: <input v-focus /> */}',
     );
   });
 
@@ -29,7 +29,7 @@ describe('generateFallbackComment', () => {
     };
     const comment = generateFallbackComment(item);
 
-    expect(comment).toContain('TODO: vuetsx');
+    expect(comment).toContain('TODO: vue-to-tsx');
     expect(comment).toContain('Unknown directive v-custom');
     expect(comment).toContain('<div v-custom="data" />');
   });
@@ -146,7 +146,7 @@ describe('resolveFallbacks', () => {
 
     expect(result.size).toBe(0);
     expect(warnSpy).toHaveBeenCalledWith(
-      'vuetsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
+      'vue-to-tsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
     );
 
     console.warn = originalWarn;

@@ -4,7 +4,7 @@ import type { FallbackItem } from '../types';
  * Generate a TODO comment for a fallback item.
  */
 export function generateFallbackComment(item: FallbackItem): string {
-  return `{/* TODO: vuetsx - ${item.reason} */}\n{/* Original: ${item.source} */}`;
+  return `{/* TODO: vue-to-tsx - ${item.reason} */}\n{/* Original: ${item.source} */}`;
 }
 
 type Provider = 'anthropic' | 'openai';
@@ -47,7 +47,7 @@ export async function resolveFallbacks(
   const provider = detectProvider();
   if (!provider) {
     console.warn(
-      'vuetsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
+      'vue-to-tsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
     );
     return result;
   }
@@ -79,7 +79,7 @@ export async function resolveFallbacks(
 
     return parseResponse(text, fallbacks);
   } catch (error) {
-    console.warn('vuetsx: LLM fallback resolution failed:', error);
+    console.warn('vue-to-tsx: LLM fallback resolution failed:', error);
     return result;
   }
 }

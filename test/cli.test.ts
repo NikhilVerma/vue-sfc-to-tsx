@@ -20,7 +20,7 @@ const msg = 'Hello'
 let tempDir: string;
 
 beforeAll(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'vuetsx-cli-'));
+  tempDir = await mkdtemp(join(tmpdir(), 'vue-to-tsx-cli-'));
 });
 
 afterAll(async () => {
@@ -37,7 +37,7 @@ describe('CLI', () => {
     const stdout = await new Response(proc.stdout).text();
 
     expect(code).toBe(0);
-    expect(stdout).toContain('vuetsx');
+    expect(stdout).toContain('vue-to-tsx');
     expect(stdout).toContain('--out-dir');
     expect(stdout).toContain('--llm');
     expect(stdout).toContain('--dry-run');

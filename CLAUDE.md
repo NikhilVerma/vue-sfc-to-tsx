@@ -1,8 +1,8 @@
-# vuetsx
+# vue-to-tsx
 
 Converts Vue Single File Components (.vue) to Vue TSX (.tsx + .module.css). This is NOT a React migration tool -- output stays within Vue.
 
-Published at: https://www.npmjs.com/package/vuetsx
+Published at: https://www.npmjs.com/package/vue-to-tsx
 
 ## Package manager
 

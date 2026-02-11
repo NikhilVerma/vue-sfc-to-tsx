@@ -16,10 +16,10 @@ interface CliOptions {
 }
 
 const HELP_TEXT = `
-vuetsx - Convert Vue SFCs to TSX + CSS Modules
+vue-to-tsx - Convert Vue SFCs to TSX + CSS Modules
 
 Usage:
-  vuetsx [options] <glob...>
+  vue-to-tsx [options] <glob...>
 
 Arguments:
   <glob...>   Glob patterns for .vue files (e.g. "src/**/*.vue")
@@ -34,9 +34,9 @@ Options:
   --help           Show this help message
 
 Examples:
-  vuetsx src/**/*.vue
-  vuetsx --out-dir dist src/components/*.vue
-  vuetsx --dry-run --llm "src/**/*.vue"
+  vue-to-tsx src/**/*.vue
+  vue-to-tsx --out-dir dist src/components/*.vue
+  vue-to-tsx --dry-run --llm "src/**/*.vue"
 `.trim();
 
 function parseArgs(argv: string[]): CliOptions {

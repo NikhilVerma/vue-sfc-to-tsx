@@ -1,4 +1,4 @@
-# vuetsx
+# vue-to-tsx
 
 Convert Vue Single File Components (`.vue`) to Vue TSX (`.tsx` + `.module.css`).
 
@@ -17,7 +17,7 @@ TSX changes that. A `.tsx` file is just TypeScript. It works everywhere TypeScri
 - **Better composition** -- components are just functions returning JSX, making it natural to compose, split, and reuse rendering logic
 - **No lock-in** -- your code is portable TypeScript, not a framework-specific file format
 
-vuetsx automates the conversion so you can migrate gradually, file by file, without rewriting anything by hand.
+vue-to-tsx automates the conversion so you can migrate gradually, file by file, without rewriting anything by hand.
 
 ## Features
 
@@ -32,41 +32,41 @@ vuetsx automates the conversion so you can migrate gradually, file by file, with
 
 ```bash
 # bun
-bun add -d vuetsx
+bun add -d vue-to-tsx
 
 # npm
-npm install -D vuetsx
+npm install -D vue-to-tsx
 
 # pnpm
-pnpm add -D vuetsx
+pnpm add -D vue-to-tsx
 ```
 
 ## CLI usage
 
 ```bash
 # Convert a single file
-vuetsx src/components/MyComponent.vue
+vue-to-tsx src/components/MyComponent.vue
 
 # Convert a directory recursively
-vuetsx src/components/
+vue-to-tsx src/components/
 
 # Convert and delete original .vue files (in-place replacement)
-vuetsx src/components/ --delete
+vue-to-tsx src/components/ --delete
 
 # Convert with LLM fallback for complex patterns
-vuetsx src/components/ --llm
+vue-to-tsx src/components/ --llm
 
 # Write output to a specific directory
-vuetsx src/components/ --out-dir converted/
+vue-to-tsx src/components/ --out-dir converted/
 
 # Preview what would happen without writing anything
-vuetsx src/components/ --dry-run --delete
+vue-to-tsx src/components/ --dry-run --delete
 ```
 
 ## Library API
 
 ```ts
-import { convert } from 'vuetsx';
+import { convert } from 'vue-to-tsx';
 
 const source = `
 <template>
@@ -129,7 +129,7 @@ bunx dprint fmt "src/**/*.tsx"
 
 ## LLM-powered fallback
 
-The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS modules, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vuetsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
+The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS modules, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vue-to-tsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
 
 ### What triggers the fallback
 
@@ -140,10 +140,10 @@ The deterministic converter handles the vast majority of Vue patterns -- `v-if`/
 
 ### Without `--llm`
 
-These patterns are marked with a `// TODO: vuetsx` comment so you can resolve them manually:
+These patterns are marked with a `// TODO: vue-to-tsx` comment so you can resolve them manually:
 
 ```tsx
-{/* TODO: vuetsx - Custom directive "v-tooltip" cannot be converted deterministically */}
+{/* TODO: vue-to-tsx - Custom directive "v-tooltip" cannot be converted deterministically */}
 {/* Original: <span v-tooltip="helpText">Hover me</span> */}
 ```
 
@@ -180,7 +180,7 @@ export VUE_TO_TSX_LLM_PROVIDER=openai  # force OpenAI even if ANTHROPIC_API_KEY 
 Then pass `--llm` to the CLI:
 
 ```bash
-vuetsx src/components/ --llm
+vue-to-tsx src/components/ --llm
 ```
 
 ### Model override
@@ -189,7 +189,7 @@ Default models: `claude-sonnet-4-5` (Anthropic), `gpt-4o` (OpenAI). Override via
 
 ```bash
 # CLI flag
-vuetsx src/components/ --llm --llm-model gpt-4o-mini
+vue-to-tsx src/components/ --llm --llm-model gpt-4o-mini
 
 # Environment variable
 export VUE_TO_TSX_LLM_MODEL=claude-haiku-4-5-20251001
