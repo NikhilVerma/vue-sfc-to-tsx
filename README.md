@@ -24,9 +24,13 @@ vue-to-tsx automates the conversion so you can migrate gradually, file by file, 
 - Template to JSX conversion (v-if/v-for/v-show/v-model, slots, events)
 - `<script setup>` to `defineComponent` with full macro support (defineProps, defineEmits, defineSlots, defineExpose, defineOptions, defineModel)
 - Type-based `defineEmits` converted to runtime `emits` option (call signature and Vue 3.3+ shorthand forms, including kebab-case event names)
-- Automatic `.value` unwrapping for `ref`/`computed` identifiers in JSX expressions
+- Automatic `.value` unwrapping for `ref`/`computed` identifiers in JSX expressions (string-literal-aware -- won't corrupt `'statement'` or `'default'` inside quotes)
+- Automatic `props.` prefixing for prop identifiers in template expressions (also string-literal-aware)
 - Vue built-in components (`Teleport`, `KeepAlive`, `Transition`, `TransitionGroup`, `Suspense`) auto-imported from `vue`
+- Auto-imports Vue APIs used in runtime props/emits (`PropType`, `ref`, `computed`, etc.)
 - `v-for` uses a runtime helper that supports arrays, objects, and numbers (matching Vue's runtime behavior)
+- Static `class` and dynamic `:class` merged into a single attribute (no duplicate class props)
+- `.vue` import paths automatically stripped (e.g., `import Foo from './Foo.vue'` becomes `'./Foo'`)
 - Scoped CSS to CSS modules (`.module.css`)
 - Handles complex patterns: v-if/v-else-if/v-else chains, dynamic components, named/scoped slots
 - Optional LLM fallback for patterns that can't be converted deterministically (Anthropic and OpenAI)
