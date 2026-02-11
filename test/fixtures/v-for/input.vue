@@ -10,15 +10,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
 interface Item {
-  id: number
-  name: string
+  id: number;
+  name: string;
 }
 
 const items = ref<Item[]>([
-  { id: 1, name: 'First' },
-  { id: 2, name: 'Second' },
-])
+  { id: 1, name: "First" },
+  { id: 2, name: "Second" },
+]);
 </script>

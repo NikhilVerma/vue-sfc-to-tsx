@@ -15,32 +15,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed } from "vue";
 
 interface Item {
-  id: number
-  name: string
-  selected: boolean
+  id: number;
+  name: string;
+  selected: boolean;
 }
 
 const props = defineProps<{
-  title: string
-  showHeader?: boolean
-}>()
+  title: string;
+  showHeader?: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'remove', id: number): void
-}>()
+  (e: "remove", id: number): void;
+}>();
 
-const items = ref<Item[]>([])
+const items = ref<Item[]>([]);
 
-const filteredItems = computed(() =>
-  items.value.filter((i) => i.name.length > 0)
-)
+const filteredItems = computed(() => items.value.filter((i) => i.name.length > 0));
 
 function removeItem(id: number) {
-  items.value = items.value.filter((i) => i.id !== id)
-  emit('remove', id)
+  items.value = items.value.filter((i) => i.id !== id);
+  emit("remove", id);
 }
 </script>
 

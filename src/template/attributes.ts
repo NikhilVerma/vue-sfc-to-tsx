@@ -1,6 +1,6 @@
-import type { ElementNode, AttributeNode, DirectiveNode } from '../types';
-import type { JsxContext } from '../types';
-import { toCamelCase, toJsxEventName, unwrapExpression } from './utils';
+import type { ElementNode, AttributeNode, DirectiveNode } from "../types";
+import type { JsxContext } from "../types";
+import { toCamelCase, toJsxEventName, unwrapExpression } from "./utils";
 
 export interface AttributeResult {
   /** Array of JSX attribute strings (e.g. ['class="foo"', 'onClick={handler}']) */
@@ -28,7 +28,7 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
       const directive = prop as DirectiveNode;
       const result = generateDirectiveAttribute(directive, ctx);
       if (result) {
-        if (result.type === 'spread') {
+        if (result.type === "spread") {
           spreads.push(result.value);
         } else {
           attrs.push(result.value);
@@ -45,12 +45,12 @@ function generateStaticAttribute(prop: AttributeNode, ctx: JsxContext): string |
   const value = prop.value?.content;
 
   // ref="x" → ref={x}
-  if (name === 'ref') {
-    return value != null ? `ref={${value}}` : 'ref={undefined}';
+  if (name === "ref") {
+    return value != null ? `ref={${value}}` : "ref={undefined}";
   }
 
   // class attribute with classMap rewriting
-  if (name === 'class' && value != null && ctx.classMap.size > 0) {
+  if (name === "class" && value != null && ctx.classMap.size > 0) {
     return generateStaticClassAttribute(value, ctx);
   }
 
@@ -80,42 +80,42 @@ function generateStaticClassAttribute(value: string, ctx: JsxContext): string {
 
   // Multiple classes: template literal or array join
   const parts = mapped.map((m) => (m.startsWith('"') ? m.slice(1, -1) : `\${${m}}`));
-  return `class={\`${parts.join(' ')}\`}`;
+  return `class={\`${parts.join(" ")}\`}`;
 }
 
 /** Directives we should skip (handled by other modules) */
 const CONTROL_FLOW_DIRECTIVES = new Set([
-  'if',
-  'else-if',
-  'else',
-  'for',
-  'show',
-  'slot',
-  'model',
-  'html',
-  'text',
-  'pre',
-  'cloak',
-  'once',
-  'memo',
+  "if",
+  "else-if",
+  "else",
+  "for",
+  "show",
+  "slot",
+  "model",
+  "html",
+  "text",
+  "pre",
+  "cloak",
+  "once",
+  "memo",
 ]);
 
 function generateDirectiveAttribute(
   directive: DirectiveNode,
   ctx: JsxContext,
-): { type: 'attr' | 'spread'; value: string } | null {
-  const { name, arg, exp } = directive;
+): { type: "attr" | "spread"; value: string } | null {
+  const { name } = directive;
 
   // Skip control-flow and other directives handled elsewhere
   if (CONTROL_FLOW_DIRECTIVES.has(name)) {
     return null;
   }
 
-  if (name === 'bind') {
+  if (name === "bind") {
     return generateBindDirective(directive, ctx);
   }
 
-  if (name === 'on') {
+  if (name === "on") {
     return generateOnDirective(directive, ctx);
   }
 
@@ -126,46 +126,46 @@ function generateDirectiveAttribute(
 function generateBindDirective(
   directive: DirectiveNode,
   ctx: JsxContext,
-): { type: 'attr' | 'spread'; value: string } | null {
+): { type: "attr" | "spread"; value: string } | null {
   const { arg, exp, modifiers } = directive;
   const expr = unwrapExpression(exp, ctx);
 
   // v-bind="obj" (no arg) → spread
   if (!arg) {
-    return expr ? { type: 'spread', value: `{...${expr}}` } : null;
+    return expr ? { type: "spread", value: `{...${expr}}` } : null;
   }
 
   const propName = unwrapExpression(arg as any);
   if (!propName) return null;
 
   // :class handling
-  if (propName === 'class') {
-    return { type: 'attr', value: generateDynamicClass(expr, ctx) };
+  if (propName === "class") {
+    return { type: "attr", value: generateDynamicClass(expr, ctx) };
   }
 
   // :style handling
-  if (propName === 'style') {
-    return { type: 'attr', value: `style={${expr}}` };
+  if (propName === "style") {
+    return { type: "attr", value: `style={${expr}}` };
   }
 
   // :ref
-  if (propName === 'ref') {
-    return { type: 'attr', value: `ref={${expr}}` };
+  if (propName === "ref") {
+    return { type: "attr", value: `ref={${expr}}` };
   }
 
   // :key
-  if (propName === 'key') {
-    return { type: 'attr', value: `key={${expr}}` };
+  if (propName === "key") {
+    return { type: "attr", value: `key={${expr}}` };
   }
 
   // .prop modifier → use the prop name directly
   // .camel modifier → camelCase
   let finalName = propName;
-  if (modifiers.includes('camel')) {
+  if (modifiers.some((m) => (m as any).content === "camel")) {
     finalName = toCamelCase(finalName);
   }
 
-  return { type: 'attr', value: `${finalName}={${expr}}` };
+  return { type: "attr", value: `${finalName}={${expr}}` };
 }
 
 function generateDynamicClass(expr: string, ctx: JsxContext): string {
@@ -175,25 +175,25 @@ function generateDynamicClass(expr: string, ctx: JsxContext): string {
 
   // Try to detect object literal pattern like { active: isActive, 'text-danger': hasError }
   const trimmed = expr.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     // Rewrite keys that exist in classMap
     const inner = trimmed.slice(1, -1).trim();
     const entries = splitObjectEntries(inner);
     const rewritten = entries.map((entry) => {
-      const colonIdx = entry.indexOf(':');
+      const colonIdx = entry.indexOf(":");
       if (colonIdx === -1) return entry;
       let key = entry.slice(0, colonIdx).trim();
       const val = entry.slice(colonIdx + 1).trim();
 
       // Remove quotes from key if present
-      const unquotedKey = key.replace(/^['"]|['"]$/g, '');
+      const unquotedKey = key.replace(/^['"]|['"]$/g, "");
       const mapped = ctx.classMap.get(unquotedKey);
       if (mapped) {
         return `[${mapped}]: ${val}`;
       }
       return entry;
     });
-    return `class={{${rewritten.join(', ')}}}`;
+    return `class={{${rewritten.join(", ")}}}`;
   }
 
   // Array or other expression — pass through
@@ -204,15 +204,15 @@ function generateDynamicClass(expr: string, ctx: JsxContext): string {
 function splitObjectEntries(str: string): string[] {
   const entries: string[] = [];
   let depth = 0;
-  let current = '';
+  let current = "";
 
   for (const ch of str) {
-    if (ch === '{' || ch === '(' || ch === '[') depth++;
-    else if (ch === '}' || ch === ')' || ch === ']') depth--;
+    if (ch === "{" || ch === "(" || ch === "[") depth++;
+    else if (ch === "}" || ch === ")" || ch === "]") depth--;
 
-    if (ch === ',' && depth === 0) {
+    if (ch === "," && depth === 0) {
       entries.push(current.trim());
-      current = '';
+      current = "";
     } else {
       current += ch;
     }
@@ -224,10 +224,10 @@ function splitObjectEntries(str: string): string[] {
 function generateOnDirective(
   directive: DirectiveNode,
   ctx: JsxContext,
-): { type: 'attr'; value: string } | null {
-  const { arg, exp, modifiers } = directive;
+): { type: "attr"; value: string } | null {
+  const { arg, exp } = directive;
   const expr = unwrapExpression(exp, ctx);
-  const eventName = arg ? unwrapExpression(arg as any) : '';
+  const eventName = arg ? unwrapExpression(arg as any) : "";
 
   if (!eventName) return null;
 
@@ -235,17 +235,17 @@ function generateOnDirective(
 
   if (!expr) {
     // @click with no handler — unlikely but handle gracefully
-    return { type: 'attr', value: `${jsxName}={() => {}}` };
+    return { type: "attr", value: `${jsxName}={() => {}}` };
   }
 
   // Simple identifier or member expression: onClick={handler}
   // Inline expression (contains parentheses, operators, etc.): onClick={() => expr}
   if (isSimpleExpression(expr) || isFunctionExpression(expr)) {
-    return { type: 'attr', value: `${jsxName}={${expr}}` };
+    return { type: "attr", value: `${jsxName}={${expr}}` };
   }
 
   // If it looks like a function call: @click="doSomething($event)"
-  return { type: 'attr', value: `${jsxName}={($event) => ${expr}}` };
+  return { type: "attr", value: `${jsxName}={($event) => ${expr}}` };
 }
 
 /** Check if an expression is a simple identifier or member access (no function call or complex expression) */
@@ -256,8 +256,8 @@ function isSimpleExpression(expr: string): boolean {
 /** Check if an expression is already a function (arrow function or function expression). */
 function isFunctionExpression(expr: string): boolean {
   const trimmed = expr.trim();
-  if (trimmed.startsWith('function')) return true;
-  if (trimmed.startsWith('(') && trimmed.includes('=>')) return true;
+  if (trimmed.startsWith("function")) return true;
+  if (trimmed.startsWith("(") && trimmed.includes("=>")) return true;
   if (/^[\w$]+\s*=>/.test(trimmed)) return true;
   return false;
 }
@@ -268,6 +268,6 @@ function isFunctionExpression(expr: string): boolean {
  */
 export function formatAttributes(result: AttributeResult): string {
   const all = [...result.attrs, ...result.spreads];
-  if (all.length === 0) return '';
-  return ' ' + all.join(' ');
+  if (all.length === 0) return "";
+  return " " + all.join(" ");
 }

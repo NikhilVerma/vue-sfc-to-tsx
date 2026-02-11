@@ -1,5 +1,5 @@
-import type { DirectiveNode, ElementNode, JsxContext } from '../types';
-import { rewriteTemplateGlobals } from './utils';
+import type { DirectiveNode, ElementNode, JsxContext } from "../types";
+import { rewriteTemplateGlobals } from "./utils";
 
 export interface DirectiveResult {
   /** JSX attribute name (if converted to an attribute) */
@@ -26,39 +26,37 @@ export function processDirective(
   const arg = dir.arg ? (dir.arg as any).content : undefined;
   const rawExp = dir.exp ? (dir.exp as any).content : undefined;
   const exp = rawExp ? rewriteTemplateGlobals(rawExp, ctx) : undefined;
-  const modifiers = dir.modifiers.map((m: any) =>
-    typeof m === 'string' ? m : m.content,
-  );
+  const modifiers = dir.modifiers.map((m: any) => (typeof m === "string" ? m : m.content));
 
   switch (name) {
-    case 'show':
-      return { attr: 'v-show', value: exp ?? 'true' };
+    case "show":
+      return { attr: "v-show", value: exp ?? "true" };
 
-    case 'model': {
-      const argSuffix = arg ? `:${arg}` : '';
+    case "model": {
+      const argSuffix = arg ? `:${arg}` : "";
       if (modifiers.length > 0) {
-        const modList = modifiers.map((m) => `'${m}'`).join(', ');
+        const modList = modifiers.map((m) => `'${m}'`).join(", ");
         return {
           attr: `v-model${argSuffix}`,
           value: `{[${exp}, [${modList}]]}`,
         };
       }
-      return { attr: `v-model${argSuffix}`, value: exp ?? 'undefined' };
+      return { attr: `v-model${argSuffix}`, value: exp ?? "undefined" };
     }
 
-    case 'html':
-      return { attr: 'innerHTML', value: exp ?? "''" };
+    case "html":
+      return { attr: "innerHTML", value: exp ?? "''" };
 
-    case 'text':
-      return { attr: 'textContent', value: exp ?? "''" };
+    case "text":
+      return { attr: "textContent", value: exp ?? "''" };
 
-    case 'pre':
+    case "pre":
       return { skipChildren: true };
 
-    case 'cloak':
+    case "cloak":
       return { omit: true };
 
-    case 'memo':
+    case "memo":
     default: {
       // Custom directives or unsupported directives -> fallback
       const source = buildDirectiveSource(dir);
@@ -74,8 +72,10 @@ export function processDirective(
 }
 
 function buildDirectiveSource(dir: DirectiveNode): string {
-  const arg = dir.arg ? `:${(dir.arg as any).content}` : '';
-  const modifiers = dir.modifiers.map((m: any) => `.${typeof m === 'string' ? m : m.content}`).join('');
-  const exp = dir.exp ? `="${(dir.exp as any).content}"` : '';
+  const arg = dir.arg ? `:${(dir.arg as any).content}` : "";
+  const modifiers = dir.modifiers
+    .map((m: any) => `.${typeof m === "string" ? m : m.content}`)
+    .join("");
+  const exp = dir.exp ? `="${(dir.exp as any).content}"` : "";
   return `v-${dir.name}${arg}${modifiers}${exp}`;
 }

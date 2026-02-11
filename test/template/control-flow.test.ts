@@ -1,7 +1,11 @@
-import { describe, expect, test } from 'bun:test';
-import { parseSFC } from '../../src/parser';
-import { processConditionalChain, processVFor, findDirective } from '../../src/template/control-flow';
-import type { ElementNode, JsxContext, TemplateChildNode } from '../../src/types';
+import { describe, expect, test } from "bun:test";
+import { parseSFC } from "../../src/parser";
+import {
+  processConditionalChain,
+  processVFor,
+  findDirective,
+} from "../../src/template/control-flow";
+import type { ElementNode, JsxContext, TemplateChildNode } from "../../src/types";
 
 function makeCtx(): JsxContext {
   return {
@@ -9,9 +13,11 @@ function makeCtx(): JsxContext {
     classMap: new Map(),
     warnings: [],
     fallbacks: [],
-    componentName: 'Test',
+    componentName: "Test",
     usedContextMembers: new Set(),
     refIdentifiers: new Set(),
+    propIdentifiers: new Set(),
+    hasVFor: false,
   };
 }
 
@@ -25,127 +31,115 @@ function getChildren(template: string): TemplateChildNode[] {
   return parsed.templateAst!.children;
 }
 
-describe('processConditionalChain', () => {
-  test('v-if only (no else)', () => {
+describe("processConditionalChain", () => {
+  test("v-if only (no else)", () => {
     const children = getChildren(`
       <div v-if="show">yes</div>
     `);
     // Find the element with v-if
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
     expect(idx).toBeGreaterThanOrEqual(0);
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{show ? <div /> : null}');
+    expect(result.jsx).toBe("{show ? <div /> : null}");
     expect(result.consumed).toBe(1);
   });
 
-  test('v-if / v-else', () => {
+  test("v-if / v-else", () => {
     const children = getChildren(`
       <div v-if="show">yes</div>
       <div v-else>no</div>
     `);
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{show ? <div /> : <div />}');
+    expect(result.jsx).toBe("{show ? <div /> : <div />}");
     // consumed includes whitespace text node between elements
     expect(result.consumed).toBeGreaterThanOrEqual(2);
   });
 
-  test('v-if / v-else-if / v-else', () => {
+  test("v-if / v-else-if / v-else", () => {
     const children = getChildren(`
       <div v-if="a">A</div>
       <div v-else-if="b">B</div>
       <div v-else>C</div>
     `);
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{a ? <div /> : b ? <div /> : <div />}');
+    expect(result.jsx).toBe("{a ? <div /> : b ? <div /> : <div />}");
   });
 
-  test('v-if / v-else-if (no else)', () => {
+  test("v-if / v-else-if (no else)", () => {
     const children = getChildren(`
       <div v-if="a">A</div>
       <div v-else-if="b">B</div>
     `);
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{a ? <div /> : b ? <div /> : null}');
+    expect(result.jsx).toBe("{a ? <div /> : b ? <div /> : null}");
   });
 
-  test('chain stops at non-conditional sibling', () => {
+  test("chain stops at non-conditional sibling", () => {
     const children = getChildren(`
       <div v-if="show">yes</div>
       <span>other</span>
     `);
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{show ? <div /> : null}');
+    expect(result.jsx).toBe("{show ? <div /> : null}");
     // Should not consume the <span>
     // consumed = 1 (v-if) + whitespace nodes
   });
 
-  test('multiple v-else-if branches', () => {
+  test("multiple v-else-if branches", () => {
     const children = getChildren(`
       <div v-if="a">A</div>
       <div v-else-if="b">B</div>
       <div v-else-if="c">C</div>
       <div v-else>D</div>
     `);
-    const idx = children.findIndex(
-      (c) => c.type === 1 && findDirective(c as ElementNode, 'if'),
-    );
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
 
     const result = processConditionalChain(children, idx, makeCtx(), renderElement);
-    expect(result.jsx).toBe('{a ? <div /> : b ? <div /> : c ? <div /> : <div />}');
+    expect(result.jsx).toBe("{a ? <div /> : b ? <div /> : c ? <div /> : <div />}");
   });
 });
 
-describe('processVFor', () => {
-  test('basic v-for with item in items', () => {
+describe("processVFor", () => {
+  test("basic v-for with item in items", () => {
     const children = getChildren(`<div v-for="item in items">{{ item }}</div>`);
     const node = children.find((c) => c.type === 1) as ElementNode;
 
     const result = processVFor(node, makeCtx(), renderElement);
-    expect(result).toBe('{items.map((item) => (<div />))}');
+    expect(result).toBe("{_renderList(items, (item) => (<div />))}");
   });
 
-  test('v-for with (item, index) in items', () => {
+  test("v-for with (item, index) in items", () => {
     const children = getChildren(`<div v-for="(item, index) in items">{{ item }}</div>`);
     const node = children.find((c) => c.type === 1) as ElementNode;
 
     const result = processVFor(node, makeCtx(), renderElement);
-    expect(result).toBe('{items.map((item, index) => (<div />))}');
+    expect(result).toBe("{_renderList(items, (item, index) => (<div />))}");
   });
 
-  test('v-for with :key', () => {
+  test("v-for with :key", () => {
     const children = getChildren(`<div v-for="item in items" :key="item.id">{{ item }}</div>`);
     const node = children.find((c) => c.type === 1) as ElementNode;
 
     const result = processVFor(node, makeCtx(), renderElement);
-    expect(result).toBe('{items.map((item) => (<div />))}');
+    expect(result).toBe("{_renderList(items, (item) => (<div />))}");
     // Note: key handling is delegated to renderElement in the real walker
   });
 
-  test('v-for with v-if on same element', () => {
+  test("v-for with v-if on same element", () => {
     const children = getChildren(`<div v-for="item in items" v-if="item.active">{{ item }}</div>`);
     const node = children.find((c) => c.type === 1) as ElementNode;
 
     const result = processVFor(node, makeCtx(), renderElement);
-    expect(result).toBe('{items.map((item) => (item.active ? <div /> : null))}');
+    expect(result).toBe("{_renderList(items, (item) => (item.active ? <div /> : null))}");
   });
 
   test('v-for with "of" syntax', () => {
@@ -153,6 +147,32 @@ describe('processVFor', () => {
     const node = children.find((c) => c.type === 1) as ElementNode;
 
     const result = processVFor(node, makeCtx(), renderElement);
-    expect(result).toBe('{items.map((item) => (<div />))}');
+    expect(result).toBe("{_renderList(items, (item) => (<div />))}");
+  });
+
+  test("v-for with (value, key) for object iteration", () => {
+    const children = getChildren(`<div v-for="(value, key) in obj">{{ key }}: {{ value }}</div>`);
+    const node = children.find((c) => c.type === 1) as ElementNode;
+
+    const result = processVFor(node, makeCtx(), renderElement);
+    expect(result).toBe("{_renderList(obj, (value, key) => (<div />))}");
+  });
+
+  test("v-for with (value, key, index) for object iteration", () => {
+    const children = getChildren(`<div v-for="(value, key, index) in obj">{{ index }}</div>`);
+    const node = children.find((c) => c.type === 1) as ElementNode;
+
+    const result = processVFor(node, makeCtx(), renderElement);
+    expect(result).toBe("{_renderList(obj, (value, key, index) => (<div />))}");
+  });
+
+  test("v-for sets hasVFor on context", () => {
+    const children = getChildren(`<div v-for="item in items">{{ item }}</div>`);
+    const node = children.find((c) => c.type === 1) as ElementNode;
+    const ctx = makeCtx();
+
+    expect(ctx.hasVFor).toBe(false);
+    processVFor(node, ctx, renderElement);
+    expect(ctx.hasVFor).toBe(true);
   });
 });

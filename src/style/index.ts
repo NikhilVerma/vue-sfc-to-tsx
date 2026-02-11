@@ -1,4 +1,4 @@
-import type { StyleBlock, StyleResult, ClassMap } from '../types';
+import type { StyleBlock, StyleResult, ClassMap } from "../types";
 
 /**
  * Process Vue-specific CSS pseudo-selectors into standard CSS.
@@ -8,76 +8,63 @@ function processVuePseudoSelectors(css: string): string {
   let result = css;
 
   // :deep(selector) → selector
-  result = result.replace(/:deep\(([^)]+)\)/g, '$1');
+  result = result.replace(/:deep\(([^)]+)\)/g, "$1");
 
   // ::v-deep selector (space-separated form)
-  result = result.replace(/::v-deep\s+/g, '');
+  result = result.replace(/::v-deep\s+/g, "");
 
   // :slotted(selector) → selector
-  result = result.replace(/:slotted\(([^)]+)\)/g, '$1');
+  result = result.replace(/:slotted\(([^)]+)\)/g, "$1");
 
   // ::v-slotted(selector) → selector
-  result = result.replace(/::v-slotted\(([^)]+)\)/g, '$1');
+  result = result.replace(/::v-slotted\(([^)]+)\)/g, "$1");
 
   // :global(selector) → selector
-  result = result.replace(/:global\(([^)]+)\)/g, '$1');
+  result = result.replace(/:global\(([^)]+)\)/g, "$1");
 
   return result;
 }
 
 /**
- * Scan CSS content for class selectors and build a map
- * from class name to CSS module access expression.
+ * Extract and process styles from Vue SFC style blocks.
+ * Returns null if there are no style blocks at all.
+ * Outputs plain CSS/SCSS files (no CSS modules).
+ * SCSS/Less content is kept as-is — the bundler (Vite) handles compilation.
  */
-function buildClassMap(css: string): ClassMap {
-  const classMap: ClassMap = new Map();
+export function extractStyles(styles: StyleBlock[], _componentName: string): StyleResult | null {
+  if (styles.length === 0) return null;
 
-  // Match class selectors: .className (word chars and hyphens)
-  const classRegex = /\.([a-zA-Z_][\w-]*)/g;
-  let match: RegExpExecArray | null;
+  const warnings: string[] = [];
 
-  while ((match = classRegex.exec(css)) !== null) {
-    const className = match[1];
-    if (classMap.has(className)) continue;
-
-    // Use bracket notation for hyphenated names, dot notation for simple
-    if (className.includes('-')) {
-      classMap.set(className, `styles["${className}"]`);
-    } else {
-      classMap.set(className, `styles.${className}`);
-    }
+  // Detect if any blocks are scoped
+  const hasScoped = styles.some((s) => s.scoped);
+  if (hasScoped) {
+    warnings.push(
+      "Scoped styles detected. The output uses plain CSS (no scoping). " +
+        "Review class usage to ensure styles are applied correctly — LLM review recommended.",
+    );
   }
 
-  return classMap;
-}
+  // Detect preprocessor lang (use first non-undefined lang found)
+  const lang = styles.find((s) => s.lang)?.lang;
 
-/**
- * Extract and process styles from Vue SFC style blocks.
- * Returns null if there are no scoped styles.
- */
-export function extractStyles(
-  styles: StyleBlock[],
-  _componentName: string,
-): StyleResult | null {
-  const scopedBlocks = styles.filter((s) => s.scoped);
+  // Combine all style content (both scoped and non-scoped)
+  const rawCss = styles.map((s) => s.content.trim()).join("\n\n");
 
-  if (scopedBlocks.length === 0) return null;
-
-  // Combine all scoped style content
-  const rawCss = scopedBlocks.map((s) => s.content.trim()).join('\n\n');
-
-  // Process Vue pseudo-selectors
+  // Process Vue pseudo-selectors (works on any CSS-like syntax)
   const css = processVuePseudoSelectors(rawCss);
 
-  // Build class map from processed CSS
-  const classMap = buildClassMap(css);
+  // No CSS modules — classMap is always empty
+  const classMap: ClassMap = new Map();
 
-  return { css, classMap };
+  return { css, classMap, lang, warnings };
 }
 
 /**
- * Get the CSS module filename for a component.
+ * Get the style filename for a component.
+ * Respects the preprocessor lang (scss → .scss, less → .less).
  */
-export function getStyleFilename(componentName: string): string {
-  return `${componentName}.module.css`;
+export function getStyleFilename(componentName: string, lang?: string): string {
+  const ext = lang ?? "css";
+  return `${componentName}.${ext}`;
 }

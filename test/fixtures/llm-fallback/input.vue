@@ -8,8 +8,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
-const value = ref('test')
-const item = ref({ id: 1, name: 'Test', selected: false })
+const value = ref("test");
+const item = ref({ id: 1, name: "Test", selected: false });
 </script>

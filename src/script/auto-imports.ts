@@ -1,55 +1,55 @@
-import type { ImportInfo } from '../types';
+import type { ImportInfo } from "../types";
 
 /** Known auto-imports: map of identifier to source module */
 const VUE_AUTO_IMPORTS: Record<string, string> = {
   // Reactivity
-  ref: 'vue',
-  computed: 'vue',
-  reactive: 'vue',
-  readonly: 'vue',
-  watch: 'vue',
-  watchEffect: 'vue',
-  watchPostEffect: 'vue',
-  watchSyncEffect: 'vue',
+  ref: "vue",
+  computed: "vue",
+  reactive: "vue",
+  readonly: "vue",
+  watch: "vue",
+  watchEffect: "vue",
+  watchPostEffect: "vue",
+  watchSyncEffect: "vue",
   // Refs
-  toRef: 'vue',
-  toRefs: 'vue',
-  isRef: 'vue',
-  unref: 'vue',
-  shallowRef: 'vue',
-  triggerRef: 'vue',
-  customRef: 'vue',
-  shallowReactive: 'vue',
-  shallowReadonly: 'vue',
-  toRaw: 'vue',
-  markRaw: 'vue',
-  isReactive: 'vue',
-  isReadonly: 'vue',
-  isProxy: 'vue',
+  toRef: "vue",
+  toRefs: "vue",
+  isRef: "vue",
+  unref: "vue",
+  shallowRef: "vue",
+  triggerRef: "vue",
+  customRef: "vue",
+  shallowReactive: "vue",
+  shallowReadonly: "vue",
+  toRaw: "vue",
+  markRaw: "vue",
+  isReactive: "vue",
+  isReadonly: "vue",
+  isProxy: "vue",
   // Lifecycle
-  onMounted: 'vue',
-  onUpdated: 'vue',
-  onUnmounted: 'vue',
-  onBeforeMount: 'vue',
-  onBeforeUpdate: 'vue',
-  onBeforeUnmount: 'vue',
-  onActivated: 'vue',
-  onDeactivated: 'vue',
-  onErrorCaptured: 'vue',
-  onServerPrefetch: 'vue',
+  onMounted: "vue",
+  onUpdated: "vue",
+  onUnmounted: "vue",
+  onBeforeMount: "vue",
+  onBeforeUpdate: "vue",
+  onBeforeUnmount: "vue",
+  onActivated: "vue",
+  onDeactivated: "vue",
+  onErrorCaptured: "vue",
+  onServerPrefetch: "vue",
   // Dependency Injection
-  provide: 'vue',
-  inject: 'vue',
+  provide: "vue",
+  inject: "vue",
   // Utilities
-  nextTick: 'vue',
-  h: 'vue',
-  defineAsyncComponent: 'vue',
-  withModifiers: 'vue',
+  nextTick: "vue",
+  h: "vue",
+  defineAsyncComponent: "vue",
+  withModifiers: "vue",
   // Types used as values
-  PropType: 'vue',
+  PropType: "vue",
   // Vue Router
-  useRoute: 'vue-router',
-  useRouter: 'vue-router',
+  useRoute: "vue-router",
+  useRouter: "vue-router",
 };
 
 /**
@@ -70,7 +70,7 @@ export function detectAutoImports(
     }
   }
 
-  const combined = scriptBody + '\n' + templateJsx;
+  const combined = scriptBody + "\n" + templateJsx;
 
   // Group missing imports by source module
   const missing = new Map<string, string[]>();

@@ -13,6 +13,12 @@ Bun. Always use `bun` for installing, running, building, and testing.
 - `bun test` -- run all tests
 - `bun run build` -- build to dist/
 - `bun run lint` -- lint with oxlint
+- `bun run lint:fix` -- lint with auto-fix
+- `bun run lint:type-aware` -- type-aware lint + type-check via oxlint + tsgolint
+- `bun run typecheck` -- type-check with tsgo (TypeScript native)
+- `bun run fmt` -- format all src/ and test/ files with oxfmt
+- `bun run fmt:check` -- check formatting without writing
+- `bun run check` -- run lint + fmt:check + typecheck (full pre-push check)
 
 ## Project structure
 
@@ -57,14 +63,21 @@ test/
 - Scoped styles are converted to CSS modules with class map
 - LLM fallback (optional): patterns that can't be converted deterministically get marked with fallback comments, then resolved via Claude or OpenAI API
 
-## Linting & formatting
+## Linting, formatting & type-checking
 
-- Linting: `oxlint src/`
-- Formatting: manual (no auto-formatter configured)
+- Linting: `oxlint` (with `oxlint-tsgolint` for type-aware rules)
+- Formatting: `oxfmt` (auto-formatter for src/ and test/)
+- Type-checking: `tsgo` (`@typescript/native-preview`) — replaces `tsc --noEmit`
+- Config: `.oxlintrc.json` for lint rules, `tsconfig.json` for type-checking
+
+## Before pushing
+
+Always run `bun run check` (or individually: `bun run lint`, `bun run fmt:check`, `bun run typecheck`) before pushing. The `prepublishOnly` script enforces lint + typecheck + test + build.
 
 ## Development ethos
 
 - **TDD (Test-Driven Development)**: Always write a failing test first before fixing a bug. Every bug fix must include a regression test.
 - Run `bun test` before and after every change
+- Run `bun run check` before pushing (lint + format + typecheck)
 - Test fixtures in `test/fixtures/` are end-to-end integration tests
 - Unit tests go in `test/template/`, `test/script/`, etc.

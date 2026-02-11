@@ -1,7 +1,7 @@
-import type { ElementNode, TemplateChildNode } from '../types';
-import type { JsxContext } from '../types';
-import { escapeJsxText, unwrapExpression, SELF_CLOSING_TAGS } from './utils';
-import { generateAttributes, formatAttributes } from './attributes';
+import type { ElementNode, TemplateChildNode } from "../types";
+import type { JsxContext } from "../types";
+import { escapeJsxText, unwrapExpression, SELF_CLOSING_TAGS } from "./utils";
+import { generateAttributes, formatAttributes } from "./attributes";
 
 /**
  * Generate a JSX string from an ElementNode.
@@ -12,16 +12,16 @@ export function generateElement(node: ElementNode, ctx: JsxContext): string {
   const tag = node.tag;
 
   // <template> → fragment
-  if (tag === 'template') {
+  if (tag === "template") {
     // Check if it has v-if/v-for/v-slot — those will be handled by other modules
     // For a bare <template>, render as fragment
     const children = generateChildren(node.children, ctx);
-    if (!children.trim()) return '<></>';
+    if (!children.trim()) return "<></>";
     return `<>${children}</>`;
   }
 
   // <component :is="expr"> → dynamic component
-  if (tag === 'component') {
+  if (tag === "component") {
     return generateDynamicComponent(node, ctx);
   }
 
@@ -45,14 +45,9 @@ export function generateElement(node: ElementNode, ctx: JsxContext): string {
 
 function generateDynamicComponent(node: ElementNode, ctx: JsxContext): string {
   // Find the :is directive
-  let componentExpr = 'undefined';
+  let componentExpr = "undefined";
   for (const prop of node.props) {
-    if (
-      prop.type === 7 &&
-      prop.name === 'bind' &&
-      prop.arg &&
-      (prop.arg as any).content === 'is'
-    ) {
+    if (prop.type === 7 && prop.name === "bind" && prop.arg && (prop.arg as any).content === "is") {
       componentExpr = unwrapExpression(prop.exp as any, ctx);
       break;
     }
@@ -62,7 +57,7 @@ function generateDynamicComponent(node: ElementNode, ctx: JsxContext): string {
   const filteredNode = {
     ...node,
     props: node.props.filter((prop) => {
-      if (prop.type === 7 && prop.name === 'bind' && prop.arg && (prop.arg as any).content === 'is')
+      if (prop.type === 7 && prop.name === "bind" && prop.arg && (prop.arg as any).content === "is")
         return false;
       return true;
     }),
@@ -94,7 +89,7 @@ export function generateChildren(children: TemplateChildNode[], ctx: JsxContext)
     }
   }
 
-  return parts.join('');
+  return parts.join("");
 }
 
 /**
@@ -124,12 +119,12 @@ function handleTextNode(node: { content: string }): string {
   // Collapse whitespace-only nodes to a single space (or skip)
   if (!text.trim()) {
     // Preserve a single space between inline elements, but skip pure whitespace
-    return text.includes('\n') ? '' : ' ';
+    return text.includes("\n") ? "" : " ";
   }
   return escapeJsxText(text);
 }
 
-function handleInterpolation(node: { content: any }, ctx?: import('../types').JsxContext): string {
+function handleInterpolation(node: { content: any }, ctx?: import("../types").JsxContext): string {
   const expr = unwrapExpression(node.content, ctx);
   return `{${expr}}`;
 }

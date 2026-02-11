@@ -1,6 +1,6 @@
-import type { RootNode, ElementNode, JsxContext } from '../types';
-import { walkChildren } from './walker';
-import { findDirective } from './control-flow';
+import type { RootNode, ElementNode, JsxContext } from "../types";
+import { walkChildren } from "./walker";
+import { findDirective } from "./control-flow";
 
 /**
  * Convert a template AST to JSX string.
@@ -15,7 +15,7 @@ export function templateToJsx(ast: RootNode, ctx: JsxContext): string {
   const trimmed = jsx.trim();
 
   if (!trimmed) {
-    return '<></>';
+    return "<></>";
   }
 
   // Count root-level JSX elements to decide if fragment is needed
@@ -43,7 +43,7 @@ function countRootElements(ast: RootNode): number {
     if (child.type === 1) {
       // ELEMENT — check for v-if chain that consumes siblings
       const el = child as ElementNode;
-      if (findDirective(el, 'if')) {
+      if (findDirective(el, "if")) {
         // Count the entire conditional chain as one output
         count++;
         i++;
@@ -56,15 +56,15 @@ function countRootElements(ast: RootNode): number {
           }
           if (sibling.type === 1) {
             const sibEl = sibling as ElementNode;
-            if (findDirective(sibEl, 'else-if') || findDirective(sibEl, 'else')) {
+            if (findDirective(sibEl, "else-if") || findDirective(sibEl, "else")) {
               i++;
-              if (findDirective(sibEl, 'else')) break; // v-else ends the chain
+              if (findDirective(sibEl, "else")) break; // v-else ends the chain
               continue;
             }
           }
           break;
         }
-      } else if (findDirective(el, 'else-if') || findDirective(el, 'else')) {
+      } else if (findDirective(el, "else-if") || findDirective(el, "else")) {
         // Stray v-else-if/v-else without v-if — skip (walker ignores these)
         i++;
       } else {
@@ -94,7 +94,7 @@ function countRootElements(ast: RootNode): number {
 }
 
 // Re-export for convenience
-export { walkChildren } from './walker';
-export { generateElement, generateChildren } from './elements';
-export { generateAttributes, formatAttributes } from './attributes';
-export { processSlot, processSlotContent, formatSlotEntries } from './slots';
+export { walkChildren } from "./walker";
+export { generateElement, generateChildren } from "./elements";
+export { generateAttributes, formatAttributes } from "./attributes";
+export { processSlot, processSlotContent, formatSlotEntries } from "./slots";

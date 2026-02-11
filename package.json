@@ -25,8 +25,14 @@
   "scripts": {
     "test": "bun test",
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --external @vue/compiler-sfc --external @vue/compiler-dom --external @vue/compiler-core --external ai --external @ai-sdk/anthropic --external @ai-sdk/openai --external magic-string",
-    "prepublishOnly": "bun test && bun run build",
+    "prepublishOnly": "bun run lint && bun run typecheck && bun test && bun run build",
     "lint": "oxlint src/",
+    "lint:fix": "oxlint --fix src/",
+    "lint:type-aware": "oxlint --type-aware --type-check src/",
+    "typecheck": "tsgo --noEmit",
+    "fmt": "oxfmt --write src/ test/",
+    "fmt:check": "oxfmt --check src/ test/",
+    "check": "bun run lint && bun run fmt:check && bun run typecheck",
     "playground": "bun run src/playground/server.ts"
   },
   "repository": {
@@ -55,7 +61,10 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260210.1",
+    "oxfmt": "^0.31.0",
     "oxlint": "^1.46.0",
+    "oxlint-tsgolint": "^0.12.0",
     "typescript": "^5.5"
   }
 }

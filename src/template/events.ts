@@ -1,5 +1,5 @@
-import type { DirectiveNode, JsxContext } from '../types';
-import { rewriteTemplateGlobals } from './utils';
+import type { DirectiveNode, JsxContext } from "../types";
+import { rewriteTemplateGlobals } from "./utils";
 
 /**
  * Convert a Vue event name to a JSX prop name.
@@ -7,9 +7,9 @@ import { rewriteTemplateGlobals } from './utils';
  */
 function toJsxEventName(eventName: string, capture: boolean): string {
   // Handle colon-separated names like "update:modelValue"
-  const colonIdx = eventName.indexOf(':');
+  const colonIdx = eventName.indexOf(":");
   let base: string;
-  let suffix = '';
+  let suffix = "";
   if (colonIdx >= 0) {
     base = eventName.slice(0, colonIdx);
     suffix = eventName.slice(colonIdx); // includes the colon
@@ -18,7 +18,7 @@ function toJsxEventName(eventName: string, capture: boolean): string {
   }
 
   const capitalized = base.charAt(0).toUpperCase() + base.slice(1);
-  const captureSuffix = capture ? 'Capture' : '';
+  const captureSuffix = capture ? "Capture" : "";
   return `on${capitalized}${suffix}${captureSuffix}`;
 }
 
@@ -38,43 +38,38 @@ function isSimpleHandler(expr: string): boolean {
 function isFunctionExpression(expr: string): boolean {
   const trimmed = expr.trim();
   // function expression: function(...) { ... }
-  if (trimmed.startsWith('function')) return true;
+  if (trimmed.startsWith("function")) return true;
   // Arrow function with parens: (...) => ...
-  if (trimmed.startsWith('(') && trimmed.includes('=>')) return true;
+  if (trimmed.startsWith("(") && trimmed.includes("=>")) return true;
   // Arrow function without parens: identifier => ...
   if (/^[\w$]+\s*=>/.test(trimmed)) return true;
   return false;
 }
 
 /** Modifiers that are handled by the Vue JSX runtime natively (not withModifiers) */
-const NATIVE_MODIFIERS = new Set(['capture', 'once', 'passive']);
+const NATIVE_MODIFIERS = new Set(["capture", "once", "passive"]);
 
 /**
  * Process an event directive (@click, v-on:click, etc.) into a JSX prop.
  *
  * @returns The JSX attribute name and value expression.
  */
-export function processEvent(
-  dir: DirectiveNode,
-  ctx: JsxContext,
-): { name: string; value: string } {
-  const eventName = dir.arg ? (dir.arg as any).content : '';
-  const rawHandler = dir.exp ? (dir.exp as any).content : '';
-  const handler = rawHandler ? rewriteTemplateGlobals(rawHandler, ctx) : '';
+export function processEvent(dir: DirectiveNode, ctx: JsxContext): { name: string; value: string } {
+  const eventName = dir.arg ? (dir.arg as any).content : "";
+  const rawHandler = dir.exp ? (dir.exp as any).content : "";
+  const handler = rawHandler ? rewriteTemplateGlobals(rawHandler, ctx) : "";
   // Modifiers in the raw AST are SimpleExpressionNode objects with .content
-  const modifiers = dir.modifiers.map((m: any) =>
-    typeof m === 'string' ? m : m.content,
-  );
+  const modifiers = dir.modifiers.map((m: any) => (typeof m === "string" ? m : m.content));
 
   // Separate native modifiers from withModifiers modifiers
-  const hasCapture = modifiers.includes('capture');
+  const hasCapture = modifiers.includes("capture");
   const runtimeModifiers = modifiers.filter((m: string) => !NATIVE_MODIFIERS.has(m));
 
   const jsxName = toJsxEventName(eventName, hasCapture);
 
   // No handler expression
   if (!handler) {
-    return { name: jsxName, value: '() => {}' };
+    return { name: jsxName, value: "() => {}" };
   }
 
   // Determine the base handler value
@@ -88,7 +83,7 @@ export function processEvent(
 
   // Apply withModifiers if there are non-native modifiers
   if (runtimeModifiers.length > 0) {
-    const modList = runtimeModifiers.map((m) => `'${m}'`).join(', ');
+    const modList = runtimeModifiers.map((m) => `'${m}'`).join(", ");
     if (isSimpleHandler(handler) || isFunctionExpression(handler)) {
       value = `withModifiers(${value}, [${modList}])`;
     } else {

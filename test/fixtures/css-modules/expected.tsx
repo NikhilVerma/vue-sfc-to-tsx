@@ -1,16 +1,16 @@
-import { defineComponent, ref } from 'vue'
-import styles from './CssModules.module.css'
+import { defineComponent, ref } from "vue";
+import "./CssModules.css";
 
 export default defineComponent({
   setup() {
-    const isActive = ref(true)
-    const hasError = ref(false)
+    const isActive = ref(true);
+    const hasError = ref(false);
 
     return () => (
-      <div class={styles.container}>
-        <h1 class={styles.title}>Hello</h1>
-        <p class={{[styles.active]: isActive.value, [styles["text-danger"]]: hasError.value}}>Dynamic</p>
+      <div class="container">
+        <h1 class="title">Hello</h1>
+        <p class={{ active: isActive.value, "text-danger": hasError.value }}>Dynamic</p>
       </div>
-    )
-  }
-})
+    );
+  },
+});

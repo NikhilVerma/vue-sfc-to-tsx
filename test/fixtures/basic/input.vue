@@ -8,9 +8,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
-const title = ref('Hello')
-const message = ref('Welcome to Vue TSX')
-const spanId = ref('my-span')
+const title = ref("Hello");
+const message = ref("Welcome to Vue TSX");
+const spanId = ref("my-span");
 </script>

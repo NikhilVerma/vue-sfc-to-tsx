@@ -1,5 +1,5 @@
-import MagicString from 'magic-string';
-import type { ExtractedMacros, ImportInfo, ModelMacro } from '../types';
+import MagicString from "magic-string";
+import type { ExtractedMacros, ImportInfo, ModelMacro, PropInfo } from "../types";
 
 /**
  * Match balanced content starting from a given character (e.g. `<` / `>` or `(` / `)`).
@@ -71,23 +71,20 @@ function parseImports(content: string): { imports: ImportInfo[]; ranges: [number
 
     // Parse clause: everything before `from`
     // Handle multiline by scanning for `from` keyword followed by a string
-    let clause = '';
     let fromPos = -1;
 
     // If there's a `{`, find the matching `}`
     const restFromPos = content.slice(pos);
-    const braceIdx = restFromPos.indexOf('{');
+    const braceIdx = restFromPos.indexOf("{");
     const firstFrom = restFromPos.match(/\bfrom\s+['"]/);
 
     if (braceIdx !== -1 && (!firstFrom || braceIdx < firstFrom.index!)) {
       // Has braces - find matching close brace
       const braceAbsIdx = pos + braceIdx;
-      const balanced = matchBalanced(content, braceAbsIdx, '{', '}');
+      const balanced = matchBalanced(content, braceAbsIdx, "{", "}");
       if (!balanced) continue;
 
       const afterBrace = balanced.end + 1;
-      clause = content.slice(pos, afterBrace).trim();
-
       // Now find `from` after the closing brace
       const fromMatch = content.slice(afterBrace).match(/^\s*from\s+(['"])(.+?)\1\s*;?/);
       if (!fromMatch) continue;
@@ -97,7 +94,7 @@ function parseImports(content: string): { imports: ImportInfo[]; ranges: [number
       const info: ImportInfo = { source, namedImports: [], typeOnly };
 
       // Extract before-brace part (default import)
-      const beforeBrace = content.slice(pos, braceAbsIdx).trim().replace(/,\s*$/, '').trim();
+      const beforeBrace = content.slice(pos, braceAbsIdx).trim().replace(/,\s*$/, "").trim();
       if (beforeBrace) {
         info.defaultImport = beforeBrace;
       }
@@ -105,7 +102,7 @@ function parseImports(content: string): { imports: ImportInfo[]; ranges: [number
       // Extract named imports from brace content
       const namedPart = balanced.content.trim();
       if (namedPart) {
-        for (const part of namedPart.split(',')) {
+        for (const part of namedPart.split(",")) {
           const trimmed = part.trim();
           if (!trimmed) continue;
           const typePrefix = trimmed.match(/^type\s+/);
@@ -159,8 +156,8 @@ function findMacro(
 } | null {
   // Look for the macro call, possibly wrapped in withDefaults for defineProps
   const re = new RegExp(
-    `(?:(?:const|let|var)\\s+\\w+\\s*=\\s*)?${macroName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
-    'g',
+    `(?:(?:const|let|var)\\s+\\w+\\s*=\\s*)?${macroName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+    "g",
   );
 
   let m: RegExpExecArray | null;
@@ -173,8 +170,8 @@ function findMacro(
     let pos = afterMacro;
 
     // Check for type parameter <...>
-    if (content[pos] === '<') {
-      const balanced = matchBalanced(content, pos, '<', '>');
+    if (content[pos] === "<") {
+      const balanced = matchBalanced(content, pos, "<", ">");
       if (balanced) {
         typeParam = balanced.content;
         pos = balanced.end + 1;
@@ -182,9 +179,9 @@ function findMacro(
     }
 
     // Must have opening paren
-    if (content[pos] !== '(') continue;
+    if (content[pos] !== "(") continue;
 
-    const parenResult = matchBalanced(content, pos, '(', ')');
+    const parenResult = matchBalanced(content, pos, "(", ")");
     if (!parenResult) continue;
 
     const argContent = parenResult.content.trim();
@@ -196,13 +193,13 @@ function findMacro(
 
     // Find the end of the statement (skip whitespace, optional semicolon, newline)
     let end = pos;
-    while (end < content.length && (content[end] === ' ' || content[end] === '\t')) end++;
-    if (content[end] === ';') end++;
-    if (content[end] === '\n') end++;
+    while (end < content.length && (content[end] === " " || content[end] === "\t")) end++;
+    if (content[end] === ";") end++;
+    if (content[end] === "\n") end++;
 
     // Find the real start (beginning of the line for `const x = macro()`)
     let start = macroStart;
-    while (start > 0 && content[start - 1] !== '\n') start--;
+    while (start > 0 && content[start - 1] !== "\n") start--;
 
     return { start, end, typeParam, runtimeArg };
   }
@@ -225,12 +222,12 @@ function findWithDefaults(content: string): {
   while ((m = re.exec(content)) !== null) {
     let start = m.index;
     // Find line start
-    while (start > 0 && content[start - 1] !== '\n') start--;
+    while (start > 0 && content[start - 1] !== "\n") start--;
 
-    const outerParenStart = content.indexOf('(', m.index + 'withDefaults'.length - 1);
+    const outerParenStart = content.indexOf("(", m.index + "withDefaults".length - 1);
     if (outerParenStart === -1) continue;
 
-    const outerParen = matchBalanced(content, outerParenStart, '(', ')');
+    const outerParen = matchBalanced(content, outerParenStart, "(", ")");
     if (!outerParen) continue;
 
     // Inside outerParen, find defineProps<T>()
@@ -241,8 +238,8 @@ function findWithDefaults(content: string): {
     let pos = dpMatch.index! + dpMatch[0].length;
     let typeParam: string | undefined;
 
-    if (inner[pos] === '<') {
-      const balanced = matchBalanced(inner, pos, '<', '>');
+    if (inner[pos] === "<") {
+      const balanced = matchBalanced(inner, pos, "<", ">");
       if (balanced) {
         typeParam = balanced.content;
         pos = balanced.end + 1;
@@ -250,23 +247,23 @@ function findWithDefaults(content: string): {
     }
 
     // Skip the defineProps() parens
-    if (inner[pos] === '(') {
-      const paren = matchBalanced(inner, pos, '(', ')');
+    if (inner[pos] === "(") {
+      const paren = matchBalanced(inner, pos, "(", ")");
       if (paren) pos = paren.end + 1;
     }
 
     if (!typeParam) continue;
 
     // After the comma, find the defaults object
-    const commaIdx = inner.indexOf(',', pos);
+    const commaIdx = inner.indexOf(",", pos);
     if (commaIdx === -1) continue;
     const defaults = inner.slice(commaIdx + 1).trim();
 
     let end = outerParen.end + 1;
     // Skip trailing semicolon/newline
-    while (end < content.length && (content[end] === ' ' || content[end] === '\t')) end++;
-    if (content[end] === ';') end++;
-    if (content[end] === '\n') end++;
+    while (end < content.length && (content[end] === " " || content[end] === "\t")) end++;
+    if (content[end] === ";") end++;
+    if (content[end] === "\n") end++;
 
     return { start, end, typeParam, defaults };
   }
@@ -278,9 +275,7 @@ function findWithDefaults(content: string): {
  * Find all defineModel calls in the source.
  * Pattern: `const <varName> = defineModel<Type>("name", { options })` (multiple allowed).
  */
-function findDefineModels(
-  content: string,
-): { start: number; end: number; model: ModelMacro }[] {
+function findDefineModels(content: string): { start: number; end: number; model: ModelMacro }[] {
   const results: { start: number; end: number; model: ModelMacro }[] = [];
   const re = /(?:const|let|var)\s+(\w+)\s*=\s*defineModel/g;
 
@@ -291,8 +286,8 @@ function findDefineModels(
 
     // Check for type parameter <...>
     let type: string | undefined;
-    if (content[pos] === '<') {
-      const balanced = matchBalanced(content, pos, '<', '>');
+    if (content[pos] === "<") {
+      const balanced = matchBalanced(content, pos, "<", ">");
       if (balanced) {
         type = balanced.content;
         pos = balanced.end + 1;
@@ -300,9 +295,9 @@ function findDefineModels(
     }
 
     // Must have opening paren
-    if (content[pos] !== '(') continue;
+    if (content[pos] !== "(") continue;
 
-    const parenResult = matchBalanced(content, pos, '(', ')');
+    const parenResult = matchBalanced(content, pos, "(", ")");
     if (!parenResult) continue;
 
     const argContent = parenResult.content.trim();
@@ -319,10 +314,10 @@ function findDefineModels(
         name = stringMatch[2];
         // Check for options after the comma
         const afterString = argContent.slice(stringMatch[0].length).trim();
-        if (afterString.startsWith(',')) {
+        if (afterString.startsWith(",")) {
           options = afterString.slice(1).trim();
         }
-      } else if (argContent.startsWith('{')) {
+      } else if (argContent.startsWith("{")) {
         // Options object without name
         options = argContent;
       }
@@ -330,13 +325,13 @@ function findDefineModels(
 
     // Find statement end
     let end = pos;
-    while (end < content.length && (content[end] === ' ' || content[end] === '\t')) end++;
-    if (content[end] === ';') end++;
-    if (content[end] === '\n') end++;
+    while (end < content.length && (content[end] === " " || content[end] === "\t")) end++;
+    if (content[end] === ";") end++;
+    if (content[end] === "\n") end++;
 
     // Find line start
     let start = m.index;
-    while (start > 0 && content[start - 1] !== '\n') start--;
+    while (start > 0 && content[start - 1] !== "\n") start--;
 
     results.push({
       start,
@@ -361,7 +356,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     expose: null,
     options: null,
     models: [],
-    body: '',
+    body: "",
     imports: [],
     rawImports: [],
     rawExports: [],
@@ -383,7 +378,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
   // Extract defineProps (only if withDefaults didn't already handle it)
   if (!result.props) {
-    const dp = findMacro(scriptContent, 'defineProps');
+    const dp = findMacro(scriptContent, "defineProps");
     if (dp) {
       result.props = {};
       if (dp.typeParam) result.props.type = dp.typeParam;
@@ -393,7 +388,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
   }
 
   // Extract defineEmits
-  const de = findMacro(scriptContent, 'defineEmits');
+  const de = findMacro(scriptContent, "defineEmits");
   if (de) {
     result.emits = {};
     if (de.typeParam) result.emits.type = de.typeParam;
@@ -402,7 +397,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
   }
 
   // Extract defineSlots
-  const ds = findMacro(scriptContent, 'defineSlots');
+  const ds = findMacro(scriptContent, "defineSlots");
   if (ds) {
     result.slots = {};
     if (ds.typeParam) result.slots.type = ds.typeParam;
@@ -410,7 +405,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
   }
 
   // Extract defineExpose
-  const dex = findMacro(scriptContent, 'defineExpose');
+  const dex = findMacro(scriptContent, "defineExpose");
   if (dex) {
     result.expose = {};
     if (dex.runtimeArg) result.expose.runtime = dex.runtimeArg;
@@ -418,7 +413,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
   }
 
   // Extract defineOptions
-  const dopt = findMacro(scriptContent, 'defineOptions');
+  const dopt = findMacro(scriptContent, "defineOptions");
   if (dopt) {
     result.options = {};
     if (dopt.runtimeArg) result.options.runtime = dopt.runtimeArg;
@@ -455,8 +450,6 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
     // Check if the export contains braces (type/interface body, re-export braces, etc.)
     // Scan forward to find the end of the statement
-    const rest = currentBody.slice(afterKeyword);
-
     // Find first brace or semicolon or newline-not-followed-by-continuation
     let pos = afterKeyword;
     let braceDepth = 0;
@@ -464,35 +457,39 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
     while (pos < currentBody.length) {
       const ch = currentBody[pos];
-      if (ch === '{') {
+      if (ch === "{") {
         braceDepth++;
         foundBrace = true;
-      } else if (ch === '}') {
+      } else if (ch === "}") {
         braceDepth--;
         if (foundBrace && braceDepth === 0) {
           // End of braced block - check for trailing `from '...'` (re-exports)
           pos++;
-          while (pos < currentBody.length && (currentBody[pos] === ' ' || currentBody[pos] === '\t')) pos++;
+          while (
+            pos < currentBody.length &&
+            (currentBody[pos] === " " || currentBody[pos] === "\t")
+          )
+            pos++;
           const trailing = currentBody.slice(pos);
           const fromMatch = trailing.match(/^from\s+(['"])(.+?)\1\s*;?/);
           if (fromMatch) {
             pos += fromMatch[0].length;
-          } else if (pos < currentBody.length && currentBody[pos] === ';') {
+          } else if (pos < currentBody.length && currentBody[pos] === ";") {
             pos++;
           }
           stmtEnd = pos;
           break;
         }
-      } else if (ch === ';' && braceDepth === 0) {
+      } else if (ch === ";" && braceDepth === 0) {
         stmtEnd = pos + 1;
         break;
-      } else if (ch === '\n' && braceDepth === 0 && !foundBrace) {
+      } else if (ch === "\n" && braceDepth === 0 && !foundBrace) {
         // Newline outside braces - check if next non-empty line is a continuation
         // Continuations: lines starting with |, &, whitespace followed by |/&
         const nextLineMatch = currentBody.slice(pos + 1).match(/^([ \t]*)(.*)/);
         if (nextLineMatch) {
           const nextContent = nextLineMatch[2];
-          if (nextContent.startsWith('|') || nextContent.startsWith('&')) {
+          if (nextContent.startsWith("|") || nextContent.startsWith("&")) {
             // Continuation line (union/intersection type)
             pos++;
             continue;
@@ -529,12 +526,12 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
 /** Vue APIs that return a Ref (need .value in JSX) */
 const REF_CREATORS = new Set([
-  'ref',
-  'computed',
-  'shallowRef',
-  'toRef',
-  'customRef',
-  'shallowComputed',
+  "ref",
+  "computed",
+  "shallowRef",
+  "toRef",
+  "customRef",
+  "shallowComputed",
 ]);
 
 /**
@@ -555,10 +552,117 @@ export function detectRefIdentifiers(body: string, models: ModelMacro[]): Set<st
     }
   }
 
+  // Match: const { a, b } = toRefs(props) — each destructured name is a ref
+  const destructRe = /(?:const|let|var)\s+\{([^}]+)\}\s*=\s*(\w+)\s*\(/g;
+  while ((m = destructRe.exec(body)) !== null) {
+    const fnName = m[2];
+    if (fnName === "toRefs" || REF_CREATORS.has(fnName)) {
+      for (const part of m[1].split(",")) {
+        const trimmed = part.trim();
+        const aliasMatch = trimmed.match(/^\w+\s*:\s*(\w+)/);
+        if (aliasMatch) {
+          refs.add(aliasMatch[1]);
+        } else if (/^\w+$/.test(trimmed)) {
+          refs.add(trimmed);
+        }
+      }
+    }
+  }
+
   // defineModel variables are converted to computed refs
   for (const model of models) {
     refs.add(model.variableName);
   }
 
   return refs;
+}
+
+/**
+ * Parse a TypeScript interface/type body (e.g. `{ indent: number; visible?: boolean }`)
+ * into structured PropInfo[].
+ */
+export function parsePropTypes(typeStr: string): PropInfo[] {
+  const props: PropInfo[] = [];
+  let body = typeStr.trim();
+
+  // Strip outer braces
+  if (body.startsWith("{")) body = body.slice(1);
+  if (body.endsWith("}")) body = body.slice(0, -1);
+  body = body.trim();
+  if (!body) return props;
+
+  // Split on `;` or newlines at top level (respecting nested braces/parens/angles)
+  const entries: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "{" || ch === "(" || ch === "<") depth++;
+    else if (ch === "}" || ch === ")" || ch === ">") depth--;
+
+    if (depth === 0 && (ch === ";" || ch === "\n")) {
+      const trimmed = current.trim();
+      if (trimmed) entries.push(trimmed);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  const last = current.trim();
+  if (last) entries.push(last);
+
+  for (let entry of entries) {
+    entry = entry.trim().replace(/;$/, "").trim();
+    if (!entry) continue;
+    // Match: name?: type  or  name: type
+    const match = entry.match(/^\s*(\w+)\s*(\?)?\s*:\s*(.+)$/s);
+    if (match) {
+      props.push({
+        name: match[1],
+        type: match[3].trim(),
+        optional: match[2] === "?",
+      });
+    }
+  }
+
+  return props;
+}
+
+/**
+ * Detect locally-declared variable names from a script body.
+ * Finds: const/let/var NAME, const { NAME, NAME } = ..., function NAME
+ */
+export function detectLocalIdentifiers(body: string): Set<string> {
+  const ids = new Set<string>();
+
+  // const/let/var NAME = ...
+  const varRe = /(?:const|let|var)\s+(\w+)\s*=/g;
+  let m: RegExpExecArray | null;
+  while ((m = varRe.exec(body)) !== null) {
+    ids.add(m[1]);
+  }
+
+  // const/let/var { NAME, NAME } = ... (destructuring)
+  const destructRe = /(?:const|let|var)\s+\{([^}]+)\}\s*=/g;
+  while ((m = destructRe.exec(body)) !== null) {
+    for (const part of m[1].split(",")) {
+      const trimmed = part.trim();
+      // Handle `name: alias` destructuring
+      const aliasMatch = trimmed.match(/^\w+\s*:\s*(\w+)/);
+      if (aliasMatch) {
+        ids.add(aliasMatch[1]);
+      } else if (/^\w+$/.test(trimmed)) {
+        ids.add(trimmed);
+      }
+    }
+  }
+
+  // function NAME(
+  const fnRe = /function\s+(\w+)\s*\(/g;
+  while ((m = fnRe.exec(body)) !== null) {
+    ids.add(m[1]);
+  }
+
+  return ids;
 }

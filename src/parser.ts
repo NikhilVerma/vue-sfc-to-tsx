@@ -1,11 +1,11 @@
-import { parse as sfcParse } from '@vue/compiler-sfc';
-import type { ParsedSFC } from './types';
+import { parse as sfcParse } from "@vue/compiler-sfc";
+import type { ParsedSFC } from "./types";
 
 /**
  * Parse a Vue SFC source string into a ParsedSFC with raw AST.
  * Uses descriptor.template.ast (the raw, untransformed AST) instead of compileTemplate().
  */
-export function parseSFC(source: string, filename = 'anonymous.vue'): ParsedSFC {
+export function parseSFC(source: string, filename = "anonymous.vue"): ParsedSFC {
   const { descriptor, errors } = sfcParse(source, {
     filename,
     sourceMap: false,
@@ -33,7 +33,7 @@ export function parseSFC(source: string, filename = 'anonymous.vue'): ParsedSFC 
       scoped: s.scoped ?? false,
       lang: s.lang,
     })),
-    errors: errors.map((e) => (typeof e === 'string' ? e : e.message)),
+    errors: errors.map((e) => (typeof e === "string" ? e : e.message)),
   };
 
   return result;

@@ -1,165 +1,249 @@
-import { describe, expect, test } from 'bun:test';
-import { extractStyles, getStyleFilename } from '../../src/style/index';
-import type { StyleBlock } from '../../src/types';
+import { describe, expect, test } from "bun:test";
+import { extractStyles, getStyleFilename } from "../../src/style/index";
+import type { StyleBlock } from "../../src/types";
 
-describe('extractStyles', () => {
-  test('returns null when no scoped styles exist', () => {
+describe("extractStyles", () => {
+  test("extracts non-scoped styles too", () => {
     const styles: StyleBlock[] = [
-      { content: '.foo { color: red; }', scoped: false, lang: undefined },
+      { content: ".foo { color: red; }", scoped: false, lang: undefined },
     ];
-    expect(extractStyles(styles, 'MyComponent')).toBeNull();
+    const result = extractStyles(styles, "MyComponent");
+    expect(result).not.toBeNull();
+    expect(result!.css).toContain(".foo");
+    expect(result!.classMap.size).toBe(0);
   });
 
-  test('returns null for empty styles array', () => {
-    expect(extractStyles([], 'MyComponent')).toBeNull();
+  test("returns null for empty styles array", () => {
+    expect(extractStyles([], "MyComponent")).toBeNull();
   });
 
-  test('extracts scoped styles and builds class map', () => {
+  test("extracts scoped styles with empty classMap", () => {
     const styles: StyleBlock[] = [
       {
-        content: '.hello { color: red; }\n.world { font-size: 14px; }',
+        content: ".hello { color: red; }\n.world { font-size: 14px; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).toContain('.hello');
-    expect(result!.css).toContain('.world');
-    expect(result!.classMap.get('hello')).toBe('styles.hello');
-    expect(result!.classMap.get('world')).toBe('styles.world');
+    expect(result!.css).toContain(".hello");
+    expect(result!.css).toContain(".world");
+    expect(result!.classMap.size).toBe(0);
   });
 
-  test('uses bracket notation for hyphenated class names', () => {
+  test("classMap is always empty (no CSS modules)", () => {
     const styles: StyleBlock[] = [
       {
-        content: '.btn-primary { background: blue; }',
+        content: ".btn-primary { background: blue; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.classMap.get('btn-primary')).toBe('styles["btn-primary"]');
+    expect(result!.classMap.size).toBe(0);
   });
 
-  test('removes :deep() pseudo-selector', () => {
+  test("removes :deep() pseudo-selector", () => {
     const styles: StyleBlock[] = [
       {
-        content: '.parent :deep(.child) { color: red; }',
+        content: ".parent :deep(.child) { color: red; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).not.toContain(':deep');
-    expect(result!.css).toContain('.parent .child');
+    expect(result!.css).not.toContain(":deep");
+    expect(result!.css).toContain(".parent .child");
   });
 
-  test('removes ::v-deep pseudo-selector', () => {
+  test("removes ::v-deep pseudo-selector", () => {
     const styles: StyleBlock[] = [
       {
-        content: '.parent ::v-deep .child { color: red; }',
+        content: ".parent ::v-deep .child { color: red; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).not.toContain('::v-deep');
-    expect(result!.css).toContain('.parent .child');
+    expect(result!.css).not.toContain("::v-deep");
+    expect(result!.css).toContain(".parent .child");
   });
 
-  test('removes :slotted() pseudo-selector', () => {
+  test("removes :slotted() pseudo-selector", () => {
     const styles: StyleBlock[] = [
       {
-        content: ':slotted(.foo) { color: red; }',
+        content: ":slotted(.foo) { color: red; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).not.toContain(':slotted');
-    expect(result!.css).toContain('.foo');
+    expect(result!.css).not.toContain(":slotted");
+    expect(result!.css).toContain(".foo");
   });
 
-  test('removes ::v-slotted() pseudo-selector', () => {
+  test("removes ::v-slotted() pseudo-selector", () => {
     const styles: StyleBlock[] = [
       {
-        content: '::v-slotted(.bar) { margin: 0; }',
+        content: "::v-slotted(.bar) { margin: 0; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).not.toContain('::v-slotted');
-    expect(result!.css).toContain('.bar');
+    expect(result!.css).not.toContain("::v-slotted");
+    expect(result!.css).toContain(".bar");
   });
 
-  test('removes :global() wrapper but keeps inner selector', () => {
+  test("removes :global() wrapper but keeps inner selector", () => {
     const styles: StyleBlock[] = [
       {
-        content: ':global(.app-title) { font-weight: bold; }',
+        content: ":global(.app-title) { font-weight: bold; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).not.toContain(':global');
-    expect(result!.css).toContain('.app-title');
+    expect(result!.css).not.toContain(":global");
+    expect(result!.css).toContain(".app-title");
   });
 
-  test('combines multiple scoped style blocks', () => {
+  test("combines all style blocks (scoped and non-scoped)", () => {
     const styles: StyleBlock[] = [
-      { content: '.a { color: red; }', scoped: true, lang: undefined },
-      { content: '.b { color: blue; }', scoped: false, lang: undefined },
-      { content: '.c { color: green; }', scoped: true, lang: undefined },
+      { content: ".a { color: red; }", scoped: true, lang: undefined },
+      { content: ".b { color: blue; }", scoped: false, lang: undefined },
+      { content: ".c { color: green; }", scoped: true, lang: undefined },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.css).toContain('.a');
-    expect(result!.css).toContain('.c');
-    expect(result!.css).not.toContain('.b');
-    expect(result!.classMap.has('a')).toBe(true);
-    expect(result!.classMap.has('c')).toBe(true);
-    expect(result!.classMap.has('b')).toBe(false);
+    expect(result!.css).toContain(".a");
+    expect(result!.css).toContain(".b");
+    expect(result!.css).toContain(".c");
+    expect(result!.classMap.size).toBe(0);
   });
 
-  test('handles multiple class selectors in compound rules', () => {
+  test("handles multiple class selectors in compound rules", () => {
     const styles: StyleBlock[] = [
       {
-        content: '.container .header, .container .footer { padding: 10px; }',
+        content: ".container .header, .container .footer { padding: 10px; }",
         scoped: true,
         lang: undefined,
       },
     ];
-    const result = extractStyles(styles, 'MyComponent');
+    const result = extractStyles(styles, "MyComponent");
 
     expect(result).not.toBeNull();
-    expect(result!.classMap.has('container')).toBe(true);
-    expect(result!.classMap.has('header')).toBe(true);
-    expect(result!.classMap.has('footer')).toBe(true);
+    expect(result!.css).toContain(".container");
+    expect(result!.css).toContain(".header");
+    expect(result!.css).toContain(".footer");
+    expect(result!.classMap.size).toBe(0);
   });
 });
 
-describe('getStyleFilename', () => {
-  test('returns component name with .module.css extension', () => {
-    expect(getStyleFilename('MyComponent')).toBe('MyComponent.module.css');
+describe("SCSS style blocks", () => {
+  test("SCSS content is preserved as-is (no conversion)", () => {
+    const styles: StyleBlock[] = [
+      {
+        content: `// This is a comment
+.foo { color: red; }
+.bar {
+  // another comment
+  font-size: 14px;
+  .nested { color: blue; }
+}`,
+        scoped: false,
+        lang: "scss",
+      },
+    ];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    // SCSS content stays as SCSS — bundler (Vite) compiles it
+    expect(result!.css).toContain("// This is a comment");
+    expect(result!.css).toContain(".foo");
+    expect(result!.css).toContain(".nested");
   });
 
-  test('works with simple names', () => {
-    expect(getStyleFilename('App')).toBe('App.module.css');
+  test("lang is detected from style blocks", () => {
+    const styles: StyleBlock[] = [{ content: ".foo { color: red; }", scoped: false, lang: "scss" }];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    expect(result!.lang).toBe("scss");
+  });
+
+  test("lang is undefined for plain CSS", () => {
+    const styles: StyleBlock[] = [
+      { content: ".foo { color: red; }", scoped: false, lang: undefined },
+    ];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    expect(result!.lang).toBeUndefined();
+  });
+
+  test("mixed lang blocks use first non-undefined lang", () => {
+    const styles: StyleBlock[] = [
+      { content: ".a {}", scoped: true, lang: undefined },
+      { content: ".b {}", scoped: false, lang: "scss" },
+    ];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    expect(result!.lang).toBe("scss");
+  });
+});
+
+describe("scoped style warnings", () => {
+  test("scoped styles produce a warning about plain CSS output", () => {
+    const styles: StyleBlock[] = [
+      { content: ".foo { color: red; }", scoped: true, lang: undefined },
+    ];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    expect(result!.warnings.length).toBeGreaterThan(0);
+    expect(result!.warnings[0]).toContain("Scoped");
+    expect(result!.warnings[0]).toContain("plain CSS");
+  });
+
+  test("non-scoped styles do not produce scoped warning", () => {
+    const styles: StyleBlock[] = [
+      { content: ".foo { color: red; }", scoped: false, lang: undefined },
+    ];
+    const result = extractStyles(styles, "MyComponent");
+
+    expect(result).not.toBeNull();
+    expect(result!.warnings).toHaveLength(0);
+  });
+});
+
+describe("getStyleFilename", () => {
+  test("returns .css for plain CSS", () => {
+    expect(getStyleFilename("MyComponent")).toBe("MyComponent.css");
+    expect(getStyleFilename("MyComponent", undefined)).toBe("MyComponent.css");
+  });
+
+  test("returns .scss for SCSS", () => {
+    expect(getStyleFilename("MyComponent", "scss")).toBe("MyComponent.scss");
+  });
+
+  test("returns .less for Less", () => {
+    expect(getStyleFilename("MyComponent", "less")).toBe("MyComponent.less");
   });
 });

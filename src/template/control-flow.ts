@@ -1,10 +1,5 @@
-import type {
-  TemplateChildNode,
-  ElementNode,
-  DirectiveNode,
-  JsxContext,
-} from '../types';
-import { rewriteTemplateGlobals } from './utils';
+import type { TemplateChildNode, ElementNode, DirectiveNode, JsxContext } from "../types";
+import { rewriteTemplateGlobals } from "./utils";
 
 // NodeTypes from @vue/compiler-core
 const ELEMENT = 1;
@@ -15,16 +10,14 @@ const DIRECTIVE = 7;
  * Check if an element node has a directive with the given name.
  */
 function findDirective(node: ElementNode, name: string): DirectiveNode | undefined {
-  return node.props.find(
-    (p): p is DirectiveNode => p.type === DIRECTIVE && p.name === name,
-  );
+  return node.props.find((p): p is DirectiveNode => p.type === DIRECTIVE && p.name === name);
 }
 
 /**
  * Check if a TemplateChildNode is a whitespace-only text node.
  */
 function isWhitespaceText(node: TemplateChildNode): boolean {
-  return node.type === TEXT && 'content' in node && (node as any).content.trim() === '';
+  return node.type === TEXT && "content" in node && (node as any).content.trim() === "";
 }
 
 /**
@@ -44,9 +37,9 @@ export function processConditionalChain(
   let consumed = 1; // the v-if node itself
 
   const ifNode = siblings[startIndex] as ElementNode;
-  const ifDir = findDirective(ifNode, 'if')!;
+  const ifDir = findDirective(ifNode, "if")!;
   branches.push({
-    condition: ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : 'true',
+    condition: ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : "true",
     node: ifNode,
   });
 
@@ -65,12 +58,14 @@ export function processConditionalChain(
     // Must be an element node
     if (sibling.type !== ELEMENT) break;
 
-    const elseIfDir = findDirective(sibling as ElementNode, 'else-if');
-    const elseDir = findDirective(sibling as ElementNode, 'else');
+    const elseIfDir = findDirective(sibling as ElementNode, "else-if");
+    const elseDir = findDirective(sibling as ElementNode, "else");
 
     if (elseIfDir) {
       branches.push({
-        condition: elseIfDir.exp ? rewriteTemplateGlobals((elseIfDir.exp as any).content, ctx) : 'true',
+        condition: elseIfDir.exp
+          ? rewriteTemplateGlobals((elseIfDir.exp as any).content, ctx)
+          : "true",
         node: sibling as ElementNode,
       });
       consumed++;
@@ -122,7 +117,7 @@ function buildTernary(
     }
   }
 
-  return parts.join(' : ');
+  return parts.join(" : ");
 }
 
 /**
@@ -132,7 +127,7 @@ function parseVForExpression(expr: string): { iterator: string; iterable: string
   // Match "X in Y" or "X of Y"
   const match = expr.match(/^\s*(.+?)\s+(?:in|of)\s+(.+?)\s*$/);
   if (!match) {
-    return { iterator: '_item', iterable: expr };
+    return { iterator: "_item", iterable: expr };
   }
   return { iterator: match[1], iterable: match[2] };
 }
@@ -149,39 +144,39 @@ export function processVFor(
   ctx: JsxContext,
   renderElement: (node: ElementNode, ctx: JsxContext) => string,
 ): string {
-  const forDir = findDirective(node, 'for')!;
-  const expr = forDir.exp ? rewriteTemplateGlobals((forDir.exp as any).content, ctx) : '';
+  const forDir = findDirective(node, "for")!;
+  const expr = forDir.exp ? rewriteTemplateGlobals((forDir.exp as any).content, ctx) : "";
   const { iterator, iterable } = parseVForExpression(expr);
 
   // Check for :key binding
   const keyDir = node.props.find(
     (p): p is DirectiveNode =>
-      p.type === DIRECTIVE && p.name === 'bind' && p.arg != null && (p.arg as any).content === 'key',
+      p.type === DIRECTIVE &&
+      p.name === "bind" &&
+      p.arg != null &&
+      (p.arg as any).content === "key",
   );
-  const keyExpr = keyDir?.exp ? (keyDir.exp as any).content : null;
+  const _keyExpr = keyDir?.exp ? (keyDir.exp as any).content : null;
 
   // Check for v-if on same element
-  const ifDir = findDirective(node, 'if');
+  const ifDir = findDirective(node, "if");
 
   const rendered = renderElement(node, ctx);
 
   let body: string;
   if (ifDir) {
-    const condition = ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : 'true';
+    const condition = ifDir.exp ? rewriteTemplateGlobals((ifDir.exp as any).content, ctx) : "true";
     body = `${condition} ? ${rendered} : null`;
   } else {
     body = rendered;
   }
 
-  const arrowParams = iterator.startsWith('(') ? iterator : `(${iterator})`;
-  const keyProp = keyExpr ? ` key={${keyExpr}}` : '';
+  const arrowParams = iterator.startsWith("(") ? iterator : `(${iterator})`;
 
-  // If key is present we expect renderElement to include it; for simplicity
-  // we just embed the map expression
-  if (keyExpr) {
-    return `{${iterable}.map(${arrowParams} => (${body}))}`;
-  }
-  return `{${iterable}.map(${arrowParams} => (${body}))}`;
+  // Mark that v-for was used so the _renderList helper gets emitted
+  ctx.hasVFor = true;
+
+  return `{_renderList(${iterable}, ${arrowParams} => (${body}))}`;
 }
 
 export { findDirective, isWhitespaceText };

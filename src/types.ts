@@ -9,7 +9,7 @@ import type {
   DirectiveNode,
   SimpleExpressionNode,
   CompoundExpressionNode,
-} from '@vue/compiler-core';
+} from "@vue/compiler-core";
 
 // Re-export AST types for convenience
 export type {
@@ -92,6 +92,13 @@ export interface StyleBlock {
   lang: string | undefined;
 }
 
+/** Parsed prop info from type-based defineProps */
+export interface PropInfo {
+  name: string;
+  type: string;
+  optional: boolean;
+}
+
 /** Extracted macro information from script setup */
 export interface ExtractedMacros {
   /** defineProps type parameter or runtime argument */
@@ -140,10 +147,14 @@ export type ClassMap = Map<string, string>;
 
 /** Style extraction result */
 export interface StyleResult {
-  /** CSS module file content */
+  /** Style file content (CSS, SCSS, Less — kept as-is, not compiled) */
   css: string;
-  /** Map of class names found in the CSS */
+  /** Map of class names found in the styles */
   classMap: ClassMap;
+  /** Original preprocessor language (e.g. 'scss', 'less') or undefined for plain CSS */
+  lang: string | undefined;
+  /** Warnings from style processing */
+  warnings: string[];
 }
 
 /** JSX generation context passed through the walker */
@@ -162,4 +173,8 @@ export interface JsxContext {
   usedContextMembers: Set<string>;
   /** Variable names that are refs/computed and need .value in JSX */
   refIdentifiers: Set<string>;
+  /** Prop names that need props. prefix in template expressions */
+  propIdentifiers: Set<string>;
+  /** Whether any v-for directive was encountered (triggers _renderList helper) */
+  hasVFor: boolean;
 }

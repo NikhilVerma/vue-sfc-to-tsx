@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-import { convert } from './index';
-import { basename, join, resolve, dirname } from 'path';
-import { watch as fsWatch } from 'fs';
-import { Glob } from 'bun';
+import { convert } from "./index";
+import { basename, join, resolve, dirname } from "path";
+import { watch as fsWatch } from "fs";
+import { Glob } from "bun";
 
 interface CliOptions {
   patterns: string[];
@@ -54,31 +54,31 @@ function parseArgs(argv: string[]): CliOptions {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    if (arg === "--help" || arg === "-h") {
       opts.help = true;
-    } else if (arg === '--llm') {
+    } else if (arg === "--llm") {
       opts.llm = true;
-    } else if (arg === '--llm-model') {
+    } else if (arg === "--llm-model") {
       i++;
       if (!args[i]) {
-        console.error('Error: --llm-model requires a model argument');
+        console.error("Error: --llm-model requires a model argument");
         process.exit(1);
       }
       opts.llmModel = args[i];
-    } else if (arg === '--dry-run') {
+    } else if (arg === "--dry-run") {
       opts.dryRun = true;
-    } else if (arg === '--delete') {
+    } else if (arg === "--delete") {
       opts.delete = true;
-    } else if (arg === '--watch' || arg === '-w') {
+    } else if (arg === "--watch" || arg === "-w") {
       opts.watch = true;
-    } else if (arg === '--out-dir') {
+    } else if (arg === "--out-dir") {
       i++;
       if (!args[i]) {
-        console.error('Error: --out-dir requires a directory argument');
+        console.error("Error: --out-dir requires a directory argument");
         process.exit(1);
       }
       opts.outDir = args[i];
-    } else if (arg.startsWith('-')) {
+    } else if (arg.startsWith("-")) {
       console.error(`Error: Unknown option "${arg}"`);
       process.exit(1);
     } else {
@@ -90,28 +90,28 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 function componentNameFromFile(filePath: string): string {
-  const name = basename(filePath, '.vue');
+  const name = basename(filePath, ".vue");
   // PascalCase: foo-bar → FooBar
   return name
     .split(/[-_]/)
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .join('');
+    .join("");
 }
 
 async function findFiles(patterns: string[]): Promise<string[]> {
   const files: string[] = [];
   for (const pattern of patterns) {
     // If it looks like a direct file path (absolute or no glob chars), check if it exists
-    if (!pattern.includes('*') && !pattern.includes('?') && !pattern.includes('{')) {
+    if (!pattern.includes("*") && !pattern.includes("?") && !pattern.includes("{")) {
       const resolved = resolve(pattern);
-      if (resolved.endsWith('.vue') && await Bun.file(resolved).exists()) {
+      if (resolved.endsWith(".vue") && (await Bun.file(resolved).exists())) {
         files.push(resolved);
       }
       continue;
     }
     const glob = new Glob(pattern);
     for await (const path of glob.scan({ cwd: process.cwd(), absolute: true })) {
-      if (path.endsWith('.vue')) {
+      if (path.endsWith(".vue")) {
         files.push(path);
       }
     }
@@ -128,14 +128,14 @@ async function main() {
   }
 
   if (opts.patterns.length === 0) {
-    console.error('Error: No input files specified. Use --help for usage.');
+    console.error("Error: No input files specified. Use --help for usage.");
     process.exit(1);
   }
 
   const files = await findFiles(opts.patterns);
 
   if (files.length === 0) {
-    console.error('No .vue files found matching the given patterns.');
+    console.error("No .vue files found matching the given patterns.");
     process.exit(1);
   }
 
@@ -147,13 +147,13 @@ async function main() {
 
   const parts = [
     `${stats.converted} converted`,
-    `${stats.cssModules} css module${stats.cssModules !== 1 ? 's' : ''}`,
+    `${stats.cssModules} css module${stats.cssModules !== 1 ? "s" : ""}`,
     `${stats.deleted} deleted`,
-    `${stats.warnings} warning${stats.warnings !== 1 ? 's' : ''}`,
-    `${stats.fallbacks} fallback${stats.fallbacks !== 1 ? 's' : ''}`,
-    `${stats.errors} error${stats.errors !== 1 ? 's' : ''}`,
+    `${stats.warnings} warning${stats.warnings !== 1 ? "s" : ""}`,
+    `${stats.fallbacks} fallback${stats.fallbacks !== 1 ? "s" : ""}`,
+    `${stats.errors} error${stats.errors !== 1 ? "s" : ""}`,
   ];
-  console.log(`\nDone: ${parts.join(', ')}.`);
+  console.log(`\nDone: ${parts.join(", ")}.`);
 
   if (opts.watch) {
     watchFiles(files, opts);
@@ -171,7 +171,11 @@ interface ConvertStats {
   errors: number;
 }
 
-async function convertSingleFile(file: string, opts: CliOptions, stats: ConvertStats): Promise<boolean> {
+async function convertSingleFile(
+  file: string,
+  opts: CliOptions,
+  stats: ConvertStats,
+): Promise<boolean> {
   const componentName = componentNameFromFile(file);
   let source: string;
   try {
@@ -198,13 +202,11 @@ async function convertSingleFile(file: string, opts: CliOptions, stats: ConvertS
     stats.fallbacks += result.fallbacks.length;
 
     const outBase = opts.outDir
-      ? join(resolve(opts.outDir), basename(file, '.vue'))
-      : join(dirname(file), basename(file, '.vue'));
+      ? join(resolve(opts.outDir), basename(file, ".vue"))
+      : join(dirname(file), basename(file, ".vue"));
 
     const tsxPath = `${outBase}.tsx`;
-    const cssPath = result.cssFilename
-      ? join(dirname(outBase), result.cssFilename)
-      : null;
+    const cssPath = result.cssFilename ? join(dirname(outBase), result.cssFilename) : null;
 
     if (opts.dryRun) {
       console.log(`[dry-run] ${file} → ${tsxPath}`);
@@ -225,7 +227,7 @@ async function convertSingleFile(file: string, opts: CliOptions, stats: ConvertS
         console.log(`${file} → ${cssPath}`);
       }
       if (opts.delete) {
-        const { unlink } = await import('fs/promises');
+        const { unlink } = await import("fs/promises");
         await unlink(file);
         stats.deleted++;
         console.log(`  deleted ${file}`);
@@ -251,7 +253,14 @@ function watchFiles(files: string[], opts: CliOptions) {
       const watcher = fsWatch(file, async (_eventType) => {
         const name = basename(file);
         console.log(`[watch] Reconverting ${name}...`);
-        const stats: ConvertStats = { converted: 0, deleted: 0, cssModules: 0, warnings: 0, fallbacks: 0, errors: 0 };
+        const stats: ConvertStats = {
+          converted: 0,
+          deleted: 0,
+          cssModules: 0,
+          warnings: 0,
+          fallbacks: 0,
+          errors: 0,
+        };
         try {
           await convertSingleFile(file, opts, stats);
         } catch (err: any) {
@@ -264,9 +273,9 @@ function watchFiles(files: string[], opts: CliOptions) {
     }
   }
 
-  process.on('SIGINT', () => {
+  process.on("SIGINT", () => {
     for (const w of watchers) w.close();
-    console.log('\n[watch] Stopped.');
+    console.log("\n[watch] Stopped.");
     process.exit(0);
   });
 }

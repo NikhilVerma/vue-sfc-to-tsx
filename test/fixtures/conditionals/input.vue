@@ -10,9 +10,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
-const status = ref<'loading' | 'error' | 'success'>('loading')
-const content = ref('Hello')
-const showLabel = ref(true)
+const status = ref<"loading" | "error" | "success">("loading");
+const content = ref("Hello");
+const showLabel = ref(true);
 </script>

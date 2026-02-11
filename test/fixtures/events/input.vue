@@ -10,22 +10,22 @@
 
 <script setup lang="ts">
 const handleClick = () => {
-  console.log('clicked')
-}
+  console.log("clicked");
+};
 
 const handleSubmit = () => {
-  console.log('submitted')
-}
+  console.log("submitted");
+};
 
 const handleBoth = () => {
-  console.log('both')
-}
+  console.log("both");
+};
 
 const onInput = (e: Event) => {
-  console.log(e)
-}
+  console.log(e);
+};
 
 const doSomething = (e: MouseEvent) => {
-  console.log(e)
-}
+  console.log(e);
+};
 </script>

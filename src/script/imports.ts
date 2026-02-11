@@ -1,4 +1,4 @@
-import type { ImportInfo } from '../types';
+import type { ImportInfo } from "../types";
 
 /**
  * Merge two arrays of imports, combining imports from the same source module.
@@ -52,15 +52,15 @@ export function mergeImports(existing: ImportInfo[], additional: ImportInfo[]): 
  */
 export function generateImportStatements(imports: ImportInfo[]): string {
   const sorted = [...imports].sort((a, b) => {
-    if (a.source === 'vue') return -1;
-    if (b.source === 'vue') return 1;
+    if (a.source === "vue") return -1;
+    if (b.source === "vue") return 1;
     return a.source.localeCompare(b.source);
   });
 
   const lines: string[] = [];
 
   for (const imp of sorted) {
-    const typePrefix = imp.typeOnly ? 'type ' : '';
+    const typePrefix = imp.typeOnly ? "type " : "";
 
     if (imp.namespaceImport) {
       lines.push(`import ${typePrefix}* as ${imp.namespaceImport} from '${imp.source}'`);
@@ -77,28 +77,42 @@ export function generateImportStatements(imports: ImportInfo[]): string {
       const namedParts = imp.namedImports.map((n) =>
         n.imported === n.local ? n.imported : `${n.imported} as ${n.local}`,
       );
-      parts.push(`{ ${namedParts.join(', ')} }`);
+      parts.push(`{ ${namedParts.join(", ")} }`);
     }
 
     if (parts.length === 0) {
       // Side-effect import
       lines.push(`import '${imp.source}'`);
     } else {
-      lines.push(`import ${typePrefix}${parts.join(', ')} from '${imp.source}'`);
+      lines.push(`import ${typePrefix}${parts.join(", ")} from '${imp.source}'`);
     }
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
  * Ensure a named export exists in the 'vue' import.
  * Mutates the imports array in place.
+ * If typeOnly is true, adds to a type-only vue import.
  */
-export function addVueImport(imports: ImportInfo[], name: string): void {
-  let vueImport = imports.find((i) => i.source === 'vue' && !i.typeOnly);
+export function addVueImport(imports: ImportInfo[], name: string, typeOnly?: boolean): void {
+  if (typeOnly) {
+    let vueTypeImport = imports.find((i) => i.source === "vue" && i.typeOnly);
+    if (!vueTypeImport) {
+      vueTypeImport = { source: "vue", namedImports: [], typeOnly: true };
+      imports.push(vueTypeImport);
+    }
+    const exists = vueTypeImport.namedImports.some((n) => n.imported === name);
+    if (!exists) {
+      vueTypeImport.namedImports.push({ imported: name, local: name });
+    }
+    return;
+  }
+
+  let vueImport = imports.find((i) => i.source === "vue" && !i.typeOnly);
   if (!vueImport) {
-    vueImport = { source: 'vue', namedImports: [], typeOnly: false };
+    vueImport = { source: "vue", namedImports: [], typeOnly: false };
     imports.push(vueImport);
   }
 

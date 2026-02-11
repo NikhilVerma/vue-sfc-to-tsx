@@ -1,9 +1,9 @@
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref } from "vue";
 
 export default defineComponent({
   setup() {
-    const value = ref('test')
-    const item = ref({ id: 1, name: 'Test', selected: false })
+    const value = ref("test");
+    const item = ref({ id: 1, name: "Test", selected: false });
 
     return () => (
       <div>
@@ -12,8 +12,10 @@ export default defineComponent({
         <p>Custom directive</p>
         {/* TODO: vue-to-tsx - Directive v-memo cannot be deterministically converted to JSX */}
         {/* Original: v-memo="[item.id, item.selected]" */}
-        <div><span>{item.value.name}</span></div>
+        <div>
+          <span>{item.value.name}</span>
+        </div>
       </div>
-    )
-  }
-})
+    );
+  },
+});

@@ -1,18 +1,10 @@
-import type {
-  RootNode,
-  TemplateChildNode,
-  ElementNode,
-  DirectiveNode,
-  JsxContext,
-} from '../types';
-import { escapeJsxText, unwrapExpression } from './utils';
-import { generateElement } from './elements';
-import { processConditionalChain, processVFor, findDirective } from './control-flow';
-import { processSlot, processSlotContent, formatSlotEntries } from './slots';
-import { generateAttributes, formatAttributes } from './attributes';
-import { processDirective } from './directives';
-import { processEvent } from './events';
-import { SELF_CLOSING_TAGS } from './utils';
+import type { TemplateChildNode, ElementNode, DirectiveNode, JsxContext } from "../types";
+import { escapeJsxText, unwrapExpression } from "./utils";
+import { processConditionalChain, processVFor, findDirective } from "./control-flow";
+import { processSlot, processSlotContent, formatSlotEntries } from "./slots";
+import { generateAttributes, formatAttributes } from "./attributes";
+import { processDirective } from "./directives";
+import { SELF_CLOSING_TAGS } from "./utils";
 
 /**
  * Walk an array of template child nodes and produce JSX string output.
@@ -31,9 +23,9 @@ export function walkChildren(children: TemplateChildNode[], ctx: JsxContext): st
         const text = (child as any).content as string;
         if (text.trim()) {
           parts.push(escapeJsxText(text));
-        } else if (!text.includes('\n')) {
+        } else if (!text.includes("\n")) {
           // Preserve inline whitespace
-          parts.push(' ');
+          parts.push(" ");
         }
         i++;
         break;
@@ -69,7 +61,7 @@ export function walkChildren(children: TemplateChildNode[], ctx: JsxContext): st
     }
   }
 
-  return parts.join('');
+  return parts.join("");
 }
 
 interface ElementResult {
@@ -87,20 +79,20 @@ function processElementNode(
   ctx: JsxContext,
 ): ElementResult {
   // 1. Handle <slot> elements
-  if (node.tag === 'slot') {
+  if (node.tag === "slot") {
     const jsx = processSlot(node, ctx, renderChildrenForSlot);
     return { jsx, consumed: 1 };
   }
 
   // 2. Check for v-for (wraps everything, takes priority)
-  const vFor = findDirective(node, 'for');
+  const vFor = findDirective(node, "for");
   if (vFor) {
     const jsx = processVFor(node, ctx, renderFullElement);
     return { jsx, consumed: 1 };
   }
 
   // 3. Check for v-if → process conditional chain across siblings
-  const vIf = findDirective(node, 'if');
+  const vIf = findDirective(node, "if");
   if (vIf) {
     const result = processConditionalChain(siblings, index, ctx, renderFullElement);
     return result;
@@ -119,30 +111,30 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
   const tag = node.tag;
 
   // <template> without control flow → fragment
-  if (tag === 'template') {
+  if (tag === "template") {
     const hasControlFlow = node.props.some(
       (p) =>
         p.type === 7 &&
-        (p.name === 'if' || p.name === 'else-if' || p.name === 'else' || p.name === 'for'),
+        (p.name === "if" || p.name === "else-if" || p.name === "else" || p.name === "for"),
     );
     if (!hasControlFlow) {
       const children = walkChildren(node.children, ctx);
-      if (!children.trim()) return '<></>';
+      if (!children.trim()) return "<></>";
       return `<>${children}</>`;
     }
     // Template with control flow — render children as fragment
     const children = walkChildren(node.children, ctx);
-    if (!children.trim()) return '<></>';
+    if (!children.trim()) return "<></>";
     return `<>${children}</>`;
   }
 
   // <component :is="expr">
-  if (tag === 'component') {
+  if (tag === "component") {
     return renderDynamicComponent(node, ctx);
   }
 
   // Process attributes, directives, and events
-  const { attrStr, extraAttrs, wrapShow } = processAllProps(node, ctx);
+  const { attrStr, wrapShow } = processAllProps(node, ctx);
 
   // Check for slot content on components
   const hasSlotContent = node.children.length > 0 && hasSlotDirectives(node);
@@ -155,12 +147,7 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
 
   let children: string;
   if (hasSlotContent) {
-    const { slotEntries } = processSlotContent(
-      node,
-      ctx,
-      renderChildrenForSlot,
-      walkChildren,
-    );
+    const { slotEntries } = processSlotContent(node, ctx, renderChildrenForSlot, walkChildren);
     children = formatSlotEntries(slotEntries);
   } else {
     children = walkChildren(node.children, ctx);
@@ -176,14 +163,9 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
 }
 
 function renderDynamicComponent(node: ElementNode, ctx: JsxContext): string {
-  let componentExpr = 'undefined';
+  let componentExpr = "undefined";
   for (const prop of node.props) {
-    if (
-      prop.type === 7 &&
-      prop.name === 'bind' &&
-      prop.arg &&
-      (prop.arg as any).content === 'is'
-    ) {
+    if (prop.type === 7 && prop.name === "bind" && prop.arg && (prop.arg as any).content === "is") {
       componentExpr = unwrapExpression(prop.exp as any, ctx);
       break;
     }
@@ -192,7 +174,7 @@ function renderDynamicComponent(node: ElementNode, ctx: JsxContext): string {
   const filteredNode = {
     ...node,
     props: node.props.filter((prop) => {
-      if (prop.type === 7 && prop.name === 'bind' && prop.arg && (prop.arg as any).content === 'is')
+      if (prop.type === 7 && prop.name === "bind" && prop.arg && (prop.arg as any).content === "is")
         return false;
       return true;
     }),
@@ -228,18 +210,18 @@ function processAllProps(node: ElementNode, ctx: JsxContext): ProcessedProps {
 
     // Skip directives already handled by attributes.ts or control-flow
     if (
-      dir.name === 'bind' ||
-      dir.name === 'on' ||
-      dir.name === 'if' ||
-      dir.name === 'else-if' ||
-      dir.name === 'else' ||
-      dir.name === 'for' ||
-      dir.name === 'slot'
+      dir.name === "bind" ||
+      dir.name === "on" ||
+      dir.name === "if" ||
+      dir.name === "else-if" ||
+      dir.name === "else" ||
+      dir.name === "for" ||
+      dir.name === "slot"
     )
       continue;
 
-    if (dir.name === 'show') {
-      wrapShow = dir.exp ? unwrapExpression(dir.exp as any, ctx) : 'true';
+    if (dir.name === "show") {
+      wrapShow = dir.exp ? unwrapExpression(dir.exp as any, ctx) : "true";
       continue;
     }
 
@@ -270,16 +252,14 @@ function hasSlotDirectives(node: ElementNode): boolean {
   for (const child of node.children) {
     if (child.type === 1) {
       const el = child as ElementNode;
-      if (el.tag === 'template') {
-        const hasSlot = el.props.some(
-          (p) => p.type === 7 && (p as DirectiveNode).name === 'slot',
-        );
+      if (el.tag === "template") {
+        const hasSlot = el.props.some((p) => p.type === 7 && (p as DirectiveNode).name === "slot");
         if (hasSlot) return true;
       }
     }
   }
   // Also check the component itself for v-slot
-  return node.props.some((p) => p.type === 7 && (p as DirectiveNode).name === 'slot');
+  return node.props.some((p) => p.type === 7 && (p as DirectiveNode).name === "slot");
 }
 
 /**
