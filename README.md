@@ -1,5 +1,7 @@
 # vue-to-tsx
 
+[![npm version](https://img.shields.io/npm/v/vue-to-tsx.svg)](https://www.npmjs.com/package/vue-to-tsx)
+
 Convert Vue Single File Components (`.vue`) to Vue TSX (`.tsx` + `.module.css`).
 
 This is **not** a React migration tool. The output is Vue TSX -- it stays within the Vue ecosystem, using `defineComponent`, Vue's JSX transform, and CSS modules.
