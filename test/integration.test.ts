@@ -261,6 +261,182 @@ const modelValue = defineModel<string>()
   });
 });
 
+describe('defineExpose integration', () => {
+  test('emits expose() call in setup body', async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const count = ref(0)
+
+function scrollTo() {}
+function clearSelection() {}
+
+defineExpose({ scrollTo, clearSelection })
+</script>`;
+    const result = await convert(input, { componentName: 'ExposeTest' });
+
+    expect(result.tsx).toContain('expose({ scrollTo, clearSelection })');
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*expose/);
+    expect(result.tsx).not.toContain('defineExpose');
+  });
+});
+
+describe('side-effect imports and exports in setup', () => {
+  test('side-effect imports hoisted to top level', async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+import { ref } from 'vue'
+import './polyfill'
+
+const count = ref(0)
+</script>`;
+    const result = await convert(input, { componentName: 'ImportTest' });
+
+    // Side-effect import should be before export default defineComponent
+    const importIdx = result.tsx.indexOf("import './polyfill'");
+    const defineIdx = result.tsx.indexOf('export default defineComponent');
+    expect(importIdx).toBeGreaterThan(-1);
+    expect(defineIdx).toBeGreaterThan(importIdx);
+
+    // Should not appear inside setup body
+    const setupIdx = result.tsx.indexOf('setup(');
+    const setupBody = result.tsx.slice(setupIdx);
+    expect(setupBody).not.toContain("import './polyfill'");
+  });
+
+  test('export statements placed after defineComponent', async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const count = ref(0)
+export type { Foo } from './types'
+</script>`;
+    const result = await convert(input, { componentName: 'ExportTest' });
+
+    // Export should be after the defineComponent closing
+    const defineEnd = result.tsx.lastIndexOf('})');
+    const exportIdx = result.tsx.indexOf("export type { Foo } from './types'");
+    expect(exportIdx).toBeGreaterThan(defineEnd);
+
+    // Should not appear inside setup body
+    const setupIdx = result.tsx.indexOf('setup(');
+    const returnIdx = result.tsx.indexOf('return () =>');
+    const setupBody = result.tsx.slice(setupIdx, returnIdx);
+    expect(setupBody).not.toContain('export type');
+  });
+});
+
+describe('export declarations hoisted to module level', () => {
+  test('multiline export type declarations are hoisted out of setup', async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+import { ref } from 'vue'
+
+export type VirtualizedListItem =
+    | string
+    | number;
+
+export type DocumentGroupNode = {
+    id: string;
+    isDocumentNode: true;
+    index: number;
+};
+
+const count = ref(0)
+
+function scrollTo() {}
+defineExpose({ scrollTo })
+</script>`;
+    const result = await convert(input, { componentName: 'TypeDeclTest' });
+
+    // Type declarations should be AFTER defineComponent, at module level
+    const defineEnd = result.tsx.lastIndexOf('})');
+    const afterDefine = result.tsx.slice(defineEnd);
+    expect(afterDefine).toContain('export type VirtualizedListItem =');
+    expect(afterDefine).toContain('| number;');
+    expect(afterDefine).toContain('export type DocumentGroupNode = {');
+    expect(afterDefine).toContain('isDocumentNode: true;');
+
+    // They should NOT be inside setup body
+    const setupIdx = result.tsx.indexOf('setup(');
+    const returnIdx = result.tsx.indexOf('return () =>');
+    const setupBody = result.tsx.slice(setupIdx, returnIdx);
+    expect(setupBody).not.toContain('export type');
+
+    // expose should still work
+    expect(result.tsx).toContain('expose({ scrollTo })');
+  });
+
+  test('multiline imports are properly extracted to top-level', async () => {
+    const input = `<template><div>{{ x }}</div></template>
+<script setup lang="ts">
+import type {
+    ClauseSchemaType,
+    DBDocumentSchema,
+    ParameterDefinitionSchemaType
+} from "@nonfx/stance-schema";
+import type { StatementStatus } from "@nonfx/types";
+
+const x = 1
+</script>`;
+    const result = await convert(input, { componentName: 'MultiImport' });
+
+    // Multiline imports should be at top level, before defineComponent
+    const defineIdx = result.tsx.indexOf('export default defineComponent');
+    const beforeDefine = result.tsx.slice(0, defineIdx);
+    expect(beforeDefine).toContain('ClauseSchemaType');
+    expect(beforeDefine).toContain('DBDocumentSchema');
+    expect(beforeDefine).toContain('ParameterDefinitionSchemaType');
+    expect(beforeDefine).toContain('StatementStatus');
+
+    // Should NOT be inside setup
+    const setupIdx = result.tsx.indexOf('setup(');
+    const setupBody = result.tsx.slice(setupIdx);
+    expect(setupBody).not.toContain('ClauseSchemaType');
+    expect(setupBody).not.toContain('@nonfx/stance-schema');
+  });
+});
+
+describe('root-level v-if chain without wrapper element', () => {
+  test('single v-if/v-else-if chain as root produces valid JSX', async () => {
+    const input = `<template>
+  <FIcon v-if="status === 'a'" source="a" />
+  <FIcon v-else-if="status === 'b'" source="b" />
+  <FIcon v-else-if="status === 'c'" source="c" />
+</template>
+<script setup lang="ts">
+const props = defineProps<{ status: string }>()
+</script>`;
+    const result = await convert(input, { componentName: 'StatusIcon' });
+
+    // A bare {ternary} is invalid in `return () => (...)`.
+    // It should be wrapped in a fragment: <>{ternary}</>
+    expect(result.tsx).toContain('return () => (');
+    expect(result.tsx).toMatch(/<>\{status/);  // Fragment wrapping the ternary
+    expect(result.tsx).toContain('</>');
+    // Should be a ternary expression
+    expect(result.tsx).toContain('?');
+    expect(result.tsx).toContain(': null');
+  });
+
+  test('v-if + v-else as only root elements produce valid JSX', async () => {
+    const input = `<template>
+  <div v-if="show">visible</div>
+  <span v-else>hidden</span>
+</template>
+<script setup lang="ts">
+const show = true
+</script>`;
+    const result = await convert(input, { componentName: 'Toggle' });
+
+    expect(result.tsx).toContain('return () => (');
+    expect(result.tsx).toMatch(/<>\{show/);
+    expect(result.tsx).toContain('</>');
+  });
+});
+
 describe('fixture comparison', () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, 'input.vue')),

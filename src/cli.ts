@@ -8,6 +8,7 @@ interface CliOptions {
   patterns: string[];
   outDir: string | null;
   llm: boolean;
+  llmModel: string | null;
   dryRun: boolean;
   delete: boolean;
   watch: boolean;
@@ -15,10 +16,10 @@ interface CliOptions {
 }
 
 const HELP_TEXT = `
-vue-to-tsx - Convert Vue SFCs to TSX + CSS Modules
+vuetsx - Convert Vue SFCs to TSX + CSS Modules
 
 Usage:
-  vue-to-tsx [options] <glob...>
+  vuetsx [options] <glob...>
 
 Arguments:
   <glob...>   Glob patterns for .vue files (e.g. "src/**/*.vue")
@@ -26,15 +27,16 @@ Arguments:
 Options:
   --out-dir <dir>  Output directory (default: same directory as input)
   --llm            Enable LLM fallback for unconvertible patterns
+  --llm-model <m>  LLM model to use (overrides env var and default)
   --dry-run        Show what would be written without writing files
   --delete         Delete original .vue files after successful conversion
   --watch, -w      Watch files for changes and re-convert on save
   --help           Show this help message
 
 Examples:
-  vue-to-tsx src/**/*.vue
-  vue-to-tsx --out-dir dist src/components/*.vue
-  vue-to-tsx --dry-run --llm "src/**/*.vue"
+  vuetsx src/**/*.vue
+  vuetsx --out-dir dist src/components/*.vue
+  vuetsx --dry-run --llm "src/**/*.vue"
 `.trim();
 
 function parseArgs(argv: string[]): CliOptions {
@@ -43,6 +45,7 @@ function parseArgs(argv: string[]): CliOptions {
     patterns: [],
     outDir: null,
     llm: false,
+    llmModel: null,
     dryRun: false,
     delete: false,
     watch: false,
@@ -55,6 +58,13 @@ function parseArgs(argv: string[]): CliOptions {
       opts.help = true;
     } else if (arg === '--llm') {
       opts.llm = true;
+    } else if (arg === '--llm-model') {
+      i++;
+      if (!args[i]) {
+        console.error('Error: --llm-model requires a model argument');
+        process.exit(1);
+      }
+      opts.llmModel = args[i];
     } else if (arg === '--dry-run') {
       opts.dryRun = true;
     } else if (arg === '--delete') {
@@ -176,6 +186,7 @@ async function convertSingleFile(file: string, opts: CliOptions, stats: ConvertS
     const result = await convert(source, {
       componentName,
       llm: opts.llm,
+      ...(opts.llmModel ? { llmModel: opts.llmModel } : {}),
     });
 
     if (result.warnings.length > 0) {

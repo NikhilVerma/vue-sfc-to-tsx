@@ -1,57 +1,72 @@
-# vue-sfc-to-tsx
+# vuetsx
 
 Convert Vue Single File Components (`.vue`) to Vue TSX (`.tsx` + `.module.css`).
 
 This is **not** a React migration tool. The output is Vue TSX -- it stays within the Vue ecosystem, using `defineComponent`, Vue's JSX transform, and CSS modules.
 
+## Why?
+
+Vue's Single File Component format is a well-designed authoring experience. But it comes with a cost: `.vue` files only work with custom tooling. Your editor needs a Vue-specific extension. Your bundler needs a Vue plugin. Your linter, your test runner, your CI -- everything in the chain needs to know what a `.vue` file is.
+
+TSX changes that. A `.tsx` file is just TypeScript. It works everywhere TypeScript works -- no plugins, no extensions, no custom language servers. You get:
+
+- **Native TypeScript support** -- full type checking, refactoring, and go-to-definition without Volar or any editor extension
+- **Standard tooling** -- any bundler, linter, test runner, or CI pipeline that supports TypeScript works out of the box
+- **All of Vue's power** -- `defineComponent`, `ref`, `computed`, `watch`, slots, emits, provide/inject -- it all works in TSX
+- **Full Nuxt compatibility** -- Nuxt auto-imports, composables, and middleware work identically in `.tsx` files
+- **Better composition** -- components are just functions returning JSX, making it natural to compose, split, and reuse rendering logic
+- **No lock-in** -- your code is portable TypeScript, not a framework-specific file format
+
+vuetsx automates the conversion so you can migrate gradually, file by file, without rewriting anything by hand.
+
 ## Features
 
 - Template to JSX conversion (v-if/v-for/v-show/v-model, slots, events)
-- `<script setup>` to `defineComponent` with full macro support (defineProps, defineEmits, defineSlots, defineExpose, defineOptions)
+- `<script setup>` to `defineComponent` with full macro support (defineProps, defineEmits, defineSlots, defineExpose, defineOptions, defineModel)
 - Scoped CSS to CSS modules (`.module.css`)
 - Handles complex patterns: v-if/v-else-if/v-else chains, dynamic components, named/scoped slots
-- Optional LLM fallback for patterns that can't be converted deterministically
+- Optional LLM fallback for patterns that can't be converted deterministically (Anthropic and OpenAI)
 - CLI for batch conversion and library API for programmatic use
 
 ## Installation
 
 ```bash
 # bun
-bun add -d vue-sfc-to-tsx
+bun add -d vuetsx
 
 # npm
-npm install -D vue-sfc-to-tsx
+npm install -D vuetsx
 
 # pnpm
-pnpm add -D vue-sfc-to-tsx
+pnpm add -D vuetsx
 ```
 
 ## CLI usage
 
 ```bash
 # Convert a single file
-vue-to-tsx src/components/MyComponent.vue
+vuetsx src/components/MyComponent.vue
 
 # Convert a directory recursively
-vue-to-tsx src/components/
+vuetsx src/components/
 
 # Convert and delete original .vue files (in-place replacement)
-vue-to-tsx src/components/ --delete
+vuetsx src/components/ --delete
 
 # Convert with LLM fallback for complex patterns
-vue-to-tsx src/components/ --llm
+vuetsx src/components/ --llm
 
 # Write output to a specific directory
-vue-to-tsx src/components/ --out-dir converted/
+vuetsx src/components/ --out-dir converted/
 
 # Preview what would happen without writing anything
-vue-to-tsx src/components/ --dry-run --delete
+vuetsx src/components/ --dry-run --delete
 ```
 
 ## Library API
 
 ```ts
-import { convert } from 'vue-sfc-to-tsx';
+import { convert } from 'vuetsx';
 
 const source = `
 <template>
@@ -95,7 +110,7 @@ console.log(result.fallbacks);  // Items that need manual review
 
 3. **Scoped CSS to CSS modules** -- `<style scoped>` blocks are converted to `.module.css` files. Class references in the template are rewritten to use `styles.className` syntax.
 
-4. **LLM fallback** -- When a template pattern can't be converted deterministically (e.g., complex custom directives), it's marked with a fallback comment. With `--llm` enabled, these are sent to Claude for resolution.
+4. **LLM fallback** -- When a template pattern can't be converted deterministically (e.g., complex custom directives), it's marked with a fallback comment. With `--llm` enabled, these are sent to an LLM for resolution.
 
 ## Output formatting
 
@@ -114,7 +129,7 @@ bunx dprint fmt "src/**/*.tsx"
 
 ## LLM-powered fallback
 
-The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS modules, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vue-to-tsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
+The deterministic converter handles the vast majority of Vue patterns -- `v-if`/`v-for`/`v-show`, `v-model`, slots, events, macros, CSS modules, and more. But roughly 5% of real-world Vue code uses patterns that have no single correct JSX translation. For these, vuetsx offers an AI-powered fallback that understands Vue semantics and produces idiomatic JSX.
 
 ### What triggers the fallback
 
@@ -125,16 +140,16 @@ The deterministic converter handles the vast majority of Vue patterns -- `v-if`/
 
 ### Without `--llm`
 
-These patterns are marked with a `// TODO: vue-to-tsx` comment so you can resolve them manually:
+These patterns are marked with a `// TODO: vuetsx` comment so you can resolve them manually:
 
 ```tsx
-{/* TODO: vue-to-tsx - Custom directive "v-tooltip" cannot be converted deterministically */}
+{/* TODO: vuetsx - Custom directive "v-tooltip" cannot be converted deterministically */}
 {/* Original: <span v-tooltip="helpText">Hover me</span> */}
 ```
 
 ### With `--llm`
 
-The same pattern is intelligently converted by Claude, which understands Vue's directive system and produces a working JSX equivalent:
+The same pattern is intelligently converted, producing a working JSX equivalent:
 
 ```tsx
 <Tooltip text={helpText.value}>
@@ -146,24 +161,38 @@ All fallback items in a file are **batched into a single API call**, so even a f
 
 ### Setup
 
-Set your Anthropic API key as an environment variable:
+Set an API key for your preferred provider:
 
 ```bash
+# Anthropic (default if both are set)
 export ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+```
+
+The provider is auto-detected from whichever API key is set. If both are set, Anthropic is preferred. You can override this with `VUE_TO_TSX_LLM_PROVIDER`:
+
+```bash
+export VUE_TO_TSX_LLM_PROVIDER=openai  # force OpenAI even if ANTHROPIC_API_KEY is set
 ```
 
 Then pass `--llm` to the CLI:
 
 ```bash
-vue-to-tsx src/components/ --llm
+vuetsx src/components/ --llm
 ```
 
 ### Model override
 
-The default model is `claude-sonnet-4-5`. You can override it with any Anthropic model:
+Default models: `claude-sonnet-4-5` (Anthropic), `gpt-4o` (OpenAI). Override via CLI flag or env var:
 
 ```bash
-vue-to-tsx src/components/ --llm --llm-model claude-sonnet-4-5
+# CLI flag
+vuetsx src/components/ --llm --llm-model gpt-4o-mini
+
+# Environment variable
+export VUE_TO_TSX_LLM_MODEL=claude-haiku-4-5-20251001
 ```
 
 ### Programmatic usage
@@ -184,7 +213,7 @@ The `convert()` function accepts an options object:
 interface ConvertOptions {
   componentName?: string;  // Component name (derived from filename if not provided)
   llm?: boolean;           // Enable LLM fallback (default: false)
-  llmModel?: string;       // Anthropic model to use (default: 'claude-sonnet-4-5')
+  llmModel?: string;       // LLM model to use (auto-detected from provider)
 }
 ```
 
@@ -192,7 +221,7 @@ interface ConvertOptions {
 |--------|----------|---------|-------------|
 | `componentName` | (from filename) | PascalCase of filename | Name used in `defineComponent` |
 | `llm` | `--llm` | `false` | Enable AI-powered fallback for unconvertible patterns |
-| `llmModel` | `--llm-model` | `'claude-sonnet-4-5'` | Anthropic model ID for fallback resolution |
+| `llmModel` | `--llm-model` | Auto (provider-dependent) | LLM model ID for fallback resolution |
 
 ## Contributing
 

@@ -1,6 +1,8 @@
-# vue-sfc-to-tsx
+# vuetsx
 
 Converts Vue Single File Components (.vue) to Vue TSX (.tsx + .module.css). This is NOT a React migration tool -- output stays within Vue.
+
+Published at: https://www.npmjs.com/package/vuetsx
 
 ## Package manager
 
@@ -53,7 +55,7 @@ test/
 - Uses raw AST from `@vue/compiler-sfc` (not compiled output)
 - Template walker does sibling scanning for v-if/v-else-if/v-else chains
 - Scoped styles are converted to CSS modules with class map
-- LLM fallback (optional): patterns that can't be converted deterministically get marked with fallback comments, then resolved via Claude API
+- LLM fallback (optional): patterns that can't be converted deterministically get marked with fallback comments, then resolved via Claude or OpenAI API
 
 ## Linting & formatting
 

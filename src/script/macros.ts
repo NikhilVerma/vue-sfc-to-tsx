@@ -31,45 +31,83 @@ function parseImports(content: string): { imports: ImportInfo[]; ranges: [number
   const imports: ImportInfo[] = [];
   const ranges: [number, number][] = [];
 
-  // Match import statements - handles multiline
-  const importRe = /^[ \t]*import\s+(type\s+)?(.+?)\s+from\s+(['"])(.+?)\3\s*;?[ \t]*$/gm;
+  // Find each `import` keyword at the start of a line
+  const importStartRe = /^[ \t]*import\s+/gm;
   let m: RegExpExecArray | null;
 
-  while ((m = importRe.exec(content)) !== null) {
-    const typeOnly = !!m[1];
-    const clause = m[2].trim();
-    const source = m[4];
-    const info: ImportInfo = {
-      source,
-      namedImports: [],
-      typeOnly,
-    };
+  while ((m = importStartRe.exec(content)) !== null) {
+    const stmtStart = m.index;
+    let pos = m.index + m[0].length;
 
-    // namespace import: * as foo
-    const nsMatch = clause.match(/^\*\s+as\s+(\w+)$/);
-    if (nsMatch) {
-      info.namespaceImport = nsMatch[1];
-      imports.push(info);
-      ranges.push([m.index, m.index + m[0].length]);
+    // Check for `type` keyword (import type ...)
+    const typeMatch = content.slice(pos).match(/^type\s+/);
+    let typeOnly = false;
+    if (typeMatch) {
+      typeOnly = true;
+      pos += typeMatch[0].length;
+    }
+
+    // Side-effect import: import 'foo' or import "foo"
+    const quoteAtStart = content[pos];
+    if (quoteAtStart === "'" || quoteAtStart === '"') {
+      // This is a side-effect import, skip it (handled separately)
       continue;
     }
 
-    // Parse the clause for default and named imports
-    const braceStart = clause.indexOf('{');
-    if (braceStart !== -1) {
-      const braceEnd = clause.indexOf('}', braceStart);
-      const namedPart = clause.slice(braceStart + 1, braceEnd).trim();
-      const beforeBrace = clause.slice(0, braceStart).trim().replace(/,\s*$/, '').trim();
+    // namespace import: * as foo from '...'
+    const nsMatch = content.slice(pos).match(/^\*\s+as\s+(\w+)\s+from\s+(['"])(.+?)\2\s*;?/);
+    if (nsMatch) {
+      const endIdx = pos + nsMatch[0].length;
+      imports.push({
+        source: nsMatch[3],
+        namedImports: [],
+        namespaceImport: nsMatch[1],
+        typeOnly,
+      });
+      ranges.push([stmtStart, endIdx]);
+      importStartRe.lastIndex = endIdx;
+      continue;
+    }
 
+    // Parse clause: everything before `from`
+    // Handle multiline by scanning for `from` keyword followed by a string
+    let clause = '';
+    let fromPos = -1;
+
+    // If there's a `{`, find the matching `}`
+    const restFromPos = content.slice(pos);
+    const braceIdx = restFromPos.indexOf('{');
+    const firstFrom = restFromPos.match(/\bfrom\s+['"]/);
+
+    if (braceIdx !== -1 && (!firstFrom || braceIdx < firstFrom.index!)) {
+      // Has braces - find matching close brace
+      const braceAbsIdx = pos + braceIdx;
+      const balanced = matchBalanced(content, braceAbsIdx, '{', '}');
+      if (!balanced) continue;
+
+      const afterBrace = balanced.end + 1;
+      clause = content.slice(pos, afterBrace).trim();
+
+      // Now find `from` after the closing brace
+      const fromMatch = content.slice(afterBrace).match(/^\s*from\s+(['"])(.+?)\1\s*;?/);
+      if (!fromMatch) continue;
+      fromPos = afterBrace + fromMatch[0].length;
+
+      const source = fromMatch[2];
+      const info: ImportInfo = { source, namedImports: [], typeOnly };
+
+      // Extract before-brace part (default import)
+      const beforeBrace = content.slice(pos, braceAbsIdx).trim().replace(/,\s*$/, '').trim();
       if (beforeBrace) {
         info.defaultImport = beforeBrace;
       }
 
+      // Extract named imports from brace content
+      const namedPart = balanced.content.trim();
       if (namedPart) {
         for (const part of namedPart.split(',')) {
           const trimmed = part.trim();
           if (!trimmed) continue;
-          // handle "type Foo" or "type Foo as Bar"
           const typePrefix = trimmed.match(/^type\s+/);
           const cleaned = typePrefix ? trimmed.slice(typePrefix[0].length) : trimmed;
           const asMatch = cleaned.match(/^(\S+)\s+as\s+(\S+)$/);
@@ -80,13 +118,27 @@ function parseImports(content: string): { imports: ImportInfo[]; ranges: [number
           }
         }
       }
-    } else {
-      // No braces - just a default import
-      info.defaultImport = clause;
-    }
 
-    imports.push(info);
-    ranges.push([m.index, m.index + m[0].length]);
+      imports.push(info);
+      ranges.push([stmtStart, fromPos]);
+      importStartRe.lastIndex = fromPos;
+    } else {
+      // No braces - default import or simple named: `import Foo from '...'`
+      const simpleMatch = content.slice(pos).match(/^(.+?)\s+from\s+(['"])(.+?)\2\s*;?/);
+      if (!simpleMatch) continue;
+
+      const endIdx = pos + simpleMatch[0].length;
+      const info: ImportInfo = {
+        source: simpleMatch[3],
+        namedImports: [],
+        typeOnly,
+      };
+      info.defaultImport = simpleMatch[1].trim();
+
+      imports.push(info);
+      ranges.push([stmtStart, endIdx]);
+      importStartRe.lastIndex = endIdx;
+    }
   }
 
   return { imports, ranges };
@@ -311,6 +363,8 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     models: [],
     body: '',
     imports: [],
+    rawImports: [],
+    rawExports: [],
   };
 
   // Extract imports first
@@ -378,8 +432,97 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     s.remove(start, end);
   }
 
-  // Clean up remaining body
-  result.body = s.toString().trim();
+  // Extract side-effect imports (import './foo') from remaining body
+  const currentBody = s.toString();
+  const sideEffectRe = /^[ \t]*import\s+(['"])(.+?)\1\s*;?[ \t]*$/gm;
+  let seMatch: RegExpExecArray | null;
+  const sideEffectRanges: [number, number][] = [];
+  while ((seMatch = sideEffectRe.exec(currentBody)) !== null) {
+    result.rawImports.push(seMatch[0].trim());
+    sideEffectRanges.push([seMatch.index, seMatch.index + seMatch[0].length]);
+  }
+
+  // Extract all export statements from remaining body.
+  // Exports can't live inside setup(), so they must be hoisted to module level.
+  // Handles multiline: export type Foo = ...; export interface Foo { ... }; export { ... }
+  const exportRanges: [number, number][] = [];
+  const exportStartRe = /^[ \t]*export\s+/gm;
+  let exMatch: RegExpExecArray | null;
+  while ((exMatch = exportStartRe.exec(currentBody)) !== null) {
+    const stmtStart = exMatch.index;
+    const afterKeyword = stmtStart + exMatch[0].length;
+    let stmtEnd = -1;
+
+    // Check if the export contains braces (type/interface body, re-export braces, etc.)
+    // Scan forward to find the end of the statement
+    const rest = currentBody.slice(afterKeyword);
+
+    // Find first brace or semicolon or newline-not-followed-by-continuation
+    let pos = afterKeyword;
+    let braceDepth = 0;
+    let foundBrace = false;
+
+    while (pos < currentBody.length) {
+      const ch = currentBody[pos];
+      if (ch === '{') {
+        braceDepth++;
+        foundBrace = true;
+      } else if (ch === '}') {
+        braceDepth--;
+        if (foundBrace && braceDepth === 0) {
+          // End of braced block - check for trailing `from '...'` (re-exports)
+          pos++;
+          while (pos < currentBody.length && (currentBody[pos] === ' ' || currentBody[pos] === '\t')) pos++;
+          const trailing = currentBody.slice(pos);
+          const fromMatch = trailing.match(/^from\s+(['"])(.+?)\1\s*;?/);
+          if (fromMatch) {
+            pos += fromMatch[0].length;
+          } else if (pos < currentBody.length && currentBody[pos] === ';') {
+            pos++;
+          }
+          stmtEnd = pos;
+          break;
+        }
+      } else if (ch === ';' && braceDepth === 0) {
+        stmtEnd = pos + 1;
+        break;
+      } else if (ch === '\n' && braceDepth === 0 && !foundBrace) {
+        // Newline outside braces - check if next non-empty line is a continuation
+        // Continuations: lines starting with |, &, whitespace followed by |/&
+        const nextLineMatch = currentBody.slice(pos + 1).match(/^([ \t]*)(.*)/);
+        if (nextLineMatch) {
+          const nextContent = nextLineMatch[2];
+          if (nextContent.startsWith('|') || nextContent.startsWith('&')) {
+            // Continuation line (union/intersection type)
+            pos++;
+            continue;
+          }
+        }
+        stmtEnd = pos;
+        break;
+      }
+      pos++;
+    }
+
+    if (stmtEnd === -1) stmtEnd = currentBody.length;
+
+    const exported = currentBody.slice(stmtStart, stmtEnd).trim();
+    result.rawExports.push(exported);
+    exportRanges.push([stmtStart, stmtEnd]);
+    exportStartRe.lastIndex = stmtEnd;
+  }
+
+  // Remove extracted side-effect imports and exports from body using a new MagicString
+  if (sideEffectRanges.length > 0 || exportRanges.length > 0) {
+    const s2 = new MagicString(currentBody);
+    for (const [start, end] of [...sideEffectRanges, ...exportRanges]) {
+      s2.remove(start, end);
+    }
+    result.body = s2.toString().trim();
+  } else {
+    // Clean up remaining body
+    result.body = currentBody.trim();
+  }
 
   return result;
 }

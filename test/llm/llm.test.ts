@@ -1,8 +1,9 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, mock, afterEach } from 'bun:test';
 import {
   generateFallbackComment,
   resolveFallbacks,
   buildPrompt,
+  detectProvider,
 } from '../../src/llm/index';
 import type { FallbackItem } from '../../src/types';
 
@@ -15,7 +16,7 @@ describe('generateFallbackComment', () => {
     const comment = generateFallbackComment(item);
 
     expect(comment).toBe(
-      '{/* TODO: vue-to-tsx - Custom directive v-focus cannot be auto-converted */}\n{/* Original: <input v-focus /> */}',
+      '{/* TODO: vuetsx - Custom directive v-focus cannot be auto-converted */}\n{/* Original: <input v-focus /> */}',
     );
   });
 
@@ -28,7 +29,7 @@ describe('generateFallbackComment', () => {
     };
     const comment = generateFallbackComment(item);
 
-    expect(comment).toContain('TODO: vue-to-tsx');
+    expect(comment).toContain('TODO: vuetsx');
     expect(comment).toContain('Unknown directive v-custom');
     expect(comment).toContain('<div v-custom="data" />');
   });
@@ -52,16 +53,78 @@ describe('buildPrompt', () => {
   });
 });
 
-describe('resolveFallbacks', () => {
-  const originalEnv = process.env.ANTHROPIC_API_KEY;
+describe('detectProvider', () => {
+  const savedEnv: Record<string, string | undefined> = {};
 
   afterEach(() => {
-    if (originalEnv !== undefined) {
-      process.env.ANTHROPIC_API_KEY = originalEnv;
-    } else {
-      delete process.env.ANTHROPIC_API_KEY;
+    // Restore original env
+    for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'VUE_TO_TSX_LLM_PROVIDER']) {
+      if (savedEnv[key] !== undefined) {
+        process.env[key] = savedEnv[key];
+      } else {
+        delete process.env[key];
+      }
     }
   });
+
+  function saveAndClearEnv() {
+    for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'VUE_TO_TSX_LLM_PROVIDER']) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  }
+
+  test('returns null when no API key is set', () => {
+    saveAndClearEnv();
+    expect(detectProvider()).toBeNull();
+  });
+
+  test('detects Anthropic when only ANTHROPIC_API_KEY is set', () => {
+    saveAndClearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    expect(detectProvider()).toBe('anthropic');
+  });
+
+  test('detects OpenAI when only OPENAI_API_KEY is set', () => {
+    saveAndClearEnv();
+    process.env.OPENAI_API_KEY = 'sk-test';
+    expect(detectProvider()).toBe('openai');
+  });
+
+  test('prefers Anthropic when both API keys are set', () => {
+    saveAndClearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.OPENAI_API_KEY = 'sk-test';
+    expect(detectProvider()).toBe('anthropic');
+  });
+
+  test('respects explicit VUE_TO_TSX_LLM_PROVIDER override', () => {
+    saveAndClearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.VUE_TO_TSX_LLM_PROVIDER = 'openai';
+    expect(detectProvider()).toBe('openai');
+  });
+});
+
+describe('resolveFallbacks', () => {
+  const savedEnv: Record<string, string | undefined> = {};
+
+  afterEach(() => {
+    for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'VUE_TO_TSX_LLM_PROVIDER']) {
+      if (savedEnv[key] !== undefined) {
+        process.env[key] = savedEnv[key];
+      } else {
+        delete process.env[key];
+      }
+    }
+  });
+
+  function saveAndClearEnv() {
+    for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'VUE_TO_TSX_LLM_PROVIDER']) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  }
 
   test('returns empty map for empty fallbacks array', async () => {
     const result = await resolveFallbacks([], 'MyComponent');
@@ -70,7 +133,7 @@ describe('resolveFallbacks', () => {
   });
 
   test('returns empty map and warns when no API key is set', async () => {
-    delete process.env.ANTHROPIC_API_KEY;
+    saveAndClearEnv();
 
     const warnSpy = mock(() => {});
     const originalWarn = console.warn;
@@ -83,7 +146,7 @@ describe('resolveFallbacks', () => {
 
     expect(result.size).toBe(0);
     expect(warnSpy).toHaveBeenCalledWith(
-      'vue-to-tsx: ANTHROPIC_API_KEY not set, skipping LLM fallback resolution',
+      'vuetsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
     );
 
     console.warn = originalWarn;

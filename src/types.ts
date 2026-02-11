@@ -110,6 +110,10 @@ export interface ExtractedMacros {
   body: string;
   /** Imports extracted from the script */
   imports: ImportInfo[];
+  /** Side-effect imports (e.g. `import './polyfill'`) */
+  rawImports: string[];
+  /** Export statements (e.g. `export type { Foo }`) */
+  rawExports: string[];
 }
 
 export interface ModelMacro {

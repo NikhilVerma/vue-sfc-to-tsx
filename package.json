@@ -1,5 +1,5 @@
 {
-  "name": "vue-sfc-to-tsx",
+  "name": "vuetsx",
   "version": "0.1.0",
   "description": "Convert Vue Single File Components (.vue) to Vue TSX (.tsx + .module.css)",
   "type": "module",
@@ -14,7 +14,7 @@
     }
   },
   "bin": {
-    "vue-to-tsx": "dist/cli.js"
+    "vuetsx": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -24,13 +24,13 @@
   ],
   "scripts": {
     "test": "bun test",
-    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --external @vue/compiler-sfc --external @vue/compiler-dom --external @vue/compiler-core --external ai --external @ai-sdk/anthropic --external magic-string",
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --external @vue/compiler-sfc --external @vue/compiler-dom --external @vue/compiler-core --external ai --external @ai-sdk/anthropic --external @ai-sdk/openai --external magic-string",
     "lint": "oxlint src/",
     "playground": "bun run src/playground/server.ts"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/NikhilVerma/vue-sfc-to-tsx.git"
+    "url": "https://github.com/nickvdv/vuetsx.git"
   },
   "keywords": [
     "vue",
@@ -49,6 +49,7 @@
     "@vue/compiler-core": "^3.5",
     "ai": "^4",
     "@ai-sdk/anthropic": "^1",
+    "@ai-sdk/openai": "^1",
     "magic-string": "^0.30"
   },
   "devDependencies": {

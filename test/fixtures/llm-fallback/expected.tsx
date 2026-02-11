@@ -7,10 +7,10 @@ export default defineComponent({
 
     return () => (
       <div>
-        {/* TODO: vue-to-tsx - Directive v-custom-directive cannot be deterministically converted to JSX */}
+        {/* TODO: vuetsx - Directive v-custom-directive cannot be deterministically converted to JSX */}
         {/* Original: v-custom-directive:arg.mod="value" */}
         <p>Custom directive</p>
-        {/* TODO: vue-to-tsx - Directive v-memo cannot be deterministically converted to JSX */}
+        {/* TODO: vuetsx - Directive v-memo cannot be deterministically converted to JSX */}
         {/* Original: v-memo="[item.id, item.selected]" */}
         <div><span>{item.value.name}</span></div>
       </div>

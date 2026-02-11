@@ -4,7 +4,30 @@ import type { FallbackItem } from '../types';
  * Generate a TODO comment for a fallback item.
  */
 export function generateFallbackComment(item: FallbackItem): string {
-  return `{/* TODO: vue-to-tsx - ${item.reason} */}\n{/* Original: ${item.source} */}`;
+  return `{/* TODO: vuetsx - ${item.reason} */}\n{/* Original: ${item.source} */}`;
+}
+
+type Provider = 'anthropic' | 'openai';
+
+const DEFAULT_MODELS: Record<Provider, string> = {
+  anthropic: 'claude-sonnet-4-5',
+  openai: 'gpt-4o',
+};
+
+/**
+ * Detect LLM provider from environment variables.
+ * Priority: explicit VUE_TO_TSX_LLM_PROVIDER > ANTHROPIC_API_KEY > OPENAI_API_KEY
+ */
+export function detectProvider(): Provider | null {
+  const explicit = process.env.VUE_TO_TSX_LLM_PROVIDER?.toLowerCase();
+  if (explicit === 'anthropic' || explicit === 'openai') {
+    return explicit;
+  }
+
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+
+  return null;
 }
 
 /**
@@ -21,30 +44,42 @@ export async function resolveFallbacks(
 
   if (fallbacks.length === 0) return result;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  const provider = detectProvider();
+  if (!provider) {
     console.warn(
-      'vue-to-tsx: ANTHROPIC_API_KEY not set, skipping LLM fallback resolution',
+      'vuetsx: No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable LLM fallback.',
     );
     return result;
   }
 
-  const model = options?.model ?? 'claude-sonnet-4-5';
+  const model =
+    options?.model ??
+    process.env.VUE_TO_TSX_LLM_MODEL ??
+    DEFAULT_MODELS[provider];
 
   const { generateText } = await import('ai');
-  const { anthropic } = await import('@ai-sdk/anthropic');
 
   const prompt = buildPrompt(fallbacks, componentName);
 
   try {
+    let modelInstance: Parameters<typeof generateText>[0]['model'];
+
+    if (provider === 'anthropic') {
+      const { anthropic } = await import('@ai-sdk/anthropic');
+      modelInstance = anthropic(model);
+    } else {
+      const { openai } = await import('@ai-sdk/openai');
+      modelInstance = openai(model);
+    }
+
     const { text } = await generateText({
-      model: anthropic(model),
+      model: modelInstance,
       prompt,
     });
 
     return parseResponse(text, fallbacks);
   } catch (error) {
-    console.warn('vue-to-tsx: LLM fallback resolution failed:', error);
+    console.warn('vuetsx: LLM fallback resolution failed:', error);
     return result;
   }
 }

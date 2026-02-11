@@ -38,6 +38,18 @@ function buildEmitsOption(emits: ExtractedMacros['emits']): string | null {
 }
 
 /**
+ * Ensure jsxBody is valid as the return value of `return () => (...)`.
+ * A bare `{expr}` (from v-if chain as single root) needs a fragment wrapper.
+ */
+function ensureValidJsxReturn(jsx: string): string {
+  const trimmed = jsx.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}') && !trimmed.startsWith('{/*')) {
+    return `<>${trimmed}</>`;
+  }
+  return jsx;
+}
+
+/**
  * Indent each line of a string by the given number of spaces.
  */
 function indentStr(str: string, spaces: number): string {
@@ -76,7 +88,7 @@ export function scriptToDefineComponent(
   lines.push('export default defineComponent({');
   lines.push('  setup() {');
   lines.push('    return () => (');
-  lines.push(indentStr(jsxBody, 6));
+  lines.push(indentStr(ensureValidJsxReturn(jsxBody), 6));
   lines.push('    )');
   lines.push('  }');
   lines.push('})');
@@ -192,9 +204,15 @@ function fromScriptSetup(
   if (macros.body) {
     bodyLines.push(macros.body);
   }
+
+  // Emit expose() call if defineExpose was used
+  if (macros.expose?.runtime) {
+    bodyLines.push(`\nexpose(${macros.expose.runtime})`);
+  }
+
   bodyLines.push('');
   bodyLines.push('return () => (');
-  bodyLines.push(indentStr(jsxBody, 2));
+  bodyLines.push(indentStr(ensureValidJsxReturn(jsxBody), 2));
   bodyLines.push(')');
 
   const indentedBody = indentStr(bodyLines.join('\n'), 4);
@@ -204,6 +222,14 @@ function fromScriptSetup(
   const importStr = generateImportStatements(merged);
   if (importStr) {
     lines.push(importStr);
+  }
+
+  // Hoist side-effect imports after structured imports
+  if (macros.rawImports.length > 0) {
+    lines.push(macros.rawImports.join('\n'));
+  }
+
+  if (lines.length > 0) {
     lines.push('');
   }
 
@@ -215,6 +241,12 @@ function fromScriptSetup(
   lines.push(indentedBody);
   lines.push('  }');
   lines.push('})');
+
+  // Append export statements after defineComponent
+  if (macros.rawExports.length > 0) {
+    lines.push('');
+    lines.push(macros.rawExports.join('\n'));
+  }
 
   return lines.join('\n');
 }
@@ -264,7 +296,7 @@ function fromRegularScript(
   lines.push(`  ...${afterExport.replace(/;?\s*$/, '')},`);
   lines.push('  setup() {');
   lines.push('    return () => (');
-  lines.push(indentStr(jsxBody, 6));
+  lines.push(indentStr(ensureValidJsxReturn(jsxBody), 6));
   lines.push('    )');
   lines.push('  }');
   lines.push('})');

@@ -160,6 +160,49 @@ const props = defineProps<{
     expect(result.props!.type).toContain('items: Array<string>');
   });
 
+  test('parses multiline named imports', () => {
+    const script = `
+import type {
+    ClauseSchemaType,
+    DBDocumentSchema,
+    ParameterDefinitionSchemaType
+} from "@nonfx/stance-schema"
+
+const x = 1
+`;
+    const result = extractMacros(script);
+
+    expect(result.imports).toHaveLength(1);
+    expect(result.imports[0].source).toBe('@nonfx/stance-schema');
+    expect(result.imports[0].typeOnly).toBe(true);
+    expect(result.imports[0].namedImports).toEqual([
+      { imported: 'ClauseSchemaType', local: 'ClauseSchemaType' },
+      { imported: 'DBDocumentSchema', local: 'DBDocumentSchema' },
+      { imported: 'ParameterDefinitionSchemaType', local: 'ParameterDefinitionSchemaType' },
+    ]);
+    expect(result.body).toBe('const x = 1');
+  });
+
+  test('parses multiline named imports with semicolons', () => {
+    const script = `
+import {
+    ref,
+    computed
+} from 'vue';
+
+const x = 1
+`;
+    const result = extractMacros(script);
+
+    expect(result.imports).toHaveLength(1);
+    expect(result.imports[0].source).toBe('vue');
+    expect(result.imports[0].namedImports).toEqual([
+      { imported: 'ref', local: 'ref' },
+      { imported: 'computed', local: 'computed' },
+    ]);
+    expect(result.body).toBe('const x = 1');
+  });
+
   test('parses default import', () => {
     const script = `
 import MyComponent from './MyComponent.vue'
@@ -206,6 +249,148 @@ import { ref as myRef } from 'vue'
 
     expect(result.imports).toHaveLength(1);
     expect(result.imports[0].namedImports).toEqual([{ imported: 'ref', local: 'myRef' }]);
+  });
+
+  describe('side-effect imports and exports', () => {
+    test('extracts side-effect import from body', () => {
+      const script = `
+import { ref } from 'vue'
+import './polyfill'
+
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawImports).toEqual(["import './polyfill'"]);
+      expect(result.body).toBe('const count = ref(0)');
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0].source).toBe('vue');
+    });
+
+    test('extracts export type from body', () => {
+      const script = `
+import { ref } from 'vue'
+
+const count = ref(0)
+export type { Foo } from './types'
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toEqual(["export type { Foo } from './types'"]);
+      expect(result.body).toBe('const count = ref(0)');
+    });
+
+    test('extracts export with re-export from body', () => {
+      const script = `
+import { ref } from 'vue'
+
+export { bar } from './baz'
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toEqual(["export { bar } from './baz'"]);
+      expect(result.body).toBe('const count = ref(0)');
+    });
+
+    test('extracts multiline export type declarations from body', () => {
+      const script = `
+import { ref } from 'vue'
+
+export type VirtualizedListItem =
+    | EnhancedStatement
+    | DocumentGroupNode
+    | ClauseGroupNode;
+
+export type DocumentGroupNode = {
+    id: string;
+    isDocumentNode: true;
+    index: number;
+};
+
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      // Export declarations must be hoisted out of setup() to module level
+      expect(result.rawExports).toHaveLength(2);
+      expect(result.rawExports[0]).toContain('export type VirtualizedListItem =');
+      expect(result.rawExports[0]).toContain('| ClauseGroupNode;');
+      expect(result.rawExports[1]).toContain('export type DocumentGroupNode = {');
+      expect(result.rawExports[1]).toContain('index: number;');
+      expect(result.rawExports[1]).toContain('};');
+      expect(result.body).toBe('const count = ref(0)');
+    });
+
+    test('extracts single-line export declarations from body', () => {
+      const script = `
+export const FOO = 'bar'
+export type SimpleAlias = string
+const count = 1
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toHaveLength(2);
+      expect(result.rawExports[0]).toBe("export const FOO = 'bar'");
+      expect(result.rawExports[1]).toBe('export type SimpleAlias = string');
+      expect(result.body).toBe('const count = 1');
+    });
+
+    test('extracts multiline export interface from body', () => {
+      const script = `
+export interface MyInterface {
+    x: number;
+    y: string;
+}
+
+const count = 1
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toHaveLength(1);
+      expect(result.rawExports[0]).toContain('export interface MyInterface {');
+      expect(result.rawExports[0]).toContain('y: string;');
+      expect(result.rawExports[0]).toContain('}');
+      expect(result.body).toBe('const count = 1');
+    });
+
+    test('extracts all export forms from body', () => {
+      const script = `
+import { ref } from 'vue'
+
+export type VirtualizedListItem =
+    | string
+    | number;
+
+export type { Foo } from './types'
+export { bar } from './baz'
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toHaveLength(3);
+      expect(result.rawExports[0]).toContain('export type VirtualizedListItem =');
+      expect(result.rawExports[0]).toContain('| number;');
+      expect(result.rawExports[1]).toBe("export type { Foo } from './types'");
+      expect(result.rawExports[2]).toBe("export { bar } from './baz'");
+      expect(result.body).toBe('const count = ref(0)');
+    });
+
+    test('extracts mixed side-effect imports and exports', () => {
+      const script = `
+import { ref } from 'vue'
+import './polyfill'
+
+const count = ref(0)
+export type { Foo }
+export { bar } from './baz'
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawImports).toEqual(["import './polyfill'"]);
+      expect(result.rawExports).toEqual(["export type { Foo }", "export { bar } from './baz'"]);
+      expect(result.body).toBe('const count = ref(0)');
+    });
   });
 
   describe('defineModel', () => {
