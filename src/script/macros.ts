@@ -1,5 +1,5 @@
 import MagicString from 'magic-string';
-import type { ExtractedMacros, ImportInfo } from '../types';
+import type { ExtractedMacros, ImportInfo, ModelMacro } from '../types';
 
 /**
  * Match balanced content starting from a given character (e.g. `<` / `>` or `(` / `)`).
@@ -223,6 +223,80 @@ function findWithDefaults(content: string): {
 }
 
 /**
+ * Find all defineModel calls in the source.
+ * Pattern: `const <varName> = defineModel<Type>("name", { options })` (multiple allowed).
+ */
+function findDefineModels(
+  content: string,
+): { start: number; end: number; model: ModelMacro }[] {
+  const results: { start: number; end: number; model: ModelMacro }[] = [];
+  const re = /(?:const|let|var)\s+(\w+)\s*=\s*defineModel/g;
+
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    const variableName = m[1];
+    let pos = m.index + m[0].length;
+
+    // Check for type parameter <...>
+    let type: string | undefined;
+    if (content[pos] === '<') {
+      const balanced = matchBalanced(content, pos, '<', '>');
+      if (balanced) {
+        type = balanced.content;
+        pos = balanced.end + 1;
+      }
+    }
+
+    // Must have opening paren
+    if (content[pos] !== '(') continue;
+
+    const parenResult = matchBalanced(content, pos, '(', ')');
+    if (!parenResult) continue;
+
+    const argContent = parenResult.content.trim();
+    pos = parenResult.end + 1;
+
+    // Parse arguments: optional string name, optional options object
+    let name: string | null = null;
+    let options: string | undefined;
+
+    if (argContent) {
+      // Check if first arg is a string literal (single or double quoted)
+      const stringMatch = argContent.match(/^(['"])(.*?)\1/);
+      if (stringMatch) {
+        name = stringMatch[2];
+        // Check for options after the comma
+        const afterString = argContent.slice(stringMatch[0].length).trim();
+        if (afterString.startsWith(',')) {
+          options = afterString.slice(1).trim();
+        }
+      } else if (argContent.startsWith('{')) {
+        // Options object without name
+        options = argContent;
+      }
+    }
+
+    // Find statement end
+    let end = pos;
+    while (end < content.length && (content[end] === ' ' || content[end] === '\t')) end++;
+    if (content[end] === ';') end++;
+    if (content[end] === '\n') end++;
+
+    // Find line start
+    let start = m.index;
+    while (start > 0 && content[start - 1] !== '\n') start--;
+
+    results.push({
+      start,
+      end,
+      model: { variableName, name, type, options },
+    });
+  }
+
+  return results;
+}
+
+/**
  * Extract Vue macros and imports from script setup content.
  */
 export function extractMacros(scriptContent: string, _lang?: string): ExtractedMacros {
@@ -234,6 +308,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     slots: null,
     expose: null,
     options: null,
+    models: [],
     body: '',
     imports: [],
   };
@@ -294,6 +369,13 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     result.options = {};
     if (dopt.runtimeArg) result.options.runtime = dopt.runtimeArg;
     s.remove(dopt.start, dopt.end);
+  }
+
+  // Extract defineModel (can appear multiple times)
+  const models = findDefineModels(scriptContent);
+  for (const { start, end, model } of models) {
+    result.models.push(model);
+    s.remove(start, end);
   }
 
   // Clean up remaining body

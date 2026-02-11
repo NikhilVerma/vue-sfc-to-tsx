@@ -1,9 +1,11 @@
 import type { ParsedSFC, ImportInfo, ExtractedMacros } from '../types';
 import { extractMacros } from './macros';
 import { mergeImports, generateImportStatements, addVueImport } from './imports';
+import { detectAutoImports } from './auto-imports';
 
 export { extractMacros } from './macros';
 export { mergeImports, generateImportStatements, addVueImport } from './imports';
+export { detectAutoImports } from './auto-imports';
 
 /**
  * Build the props option for defineComponent from extracted macros.
@@ -90,8 +92,11 @@ function fromScriptSetup(
 ): string {
   const macros = extractMacros(parsed.scriptSetup!.content, parsed.scriptSetup!.lang);
 
+  // Detect auto-imported APIs (e.g., ref, computed used without explicit import)
+  const autoImported = detectAutoImports(macros.body, jsxBody, macros.imports);
+
   // Build imports
-  const allImports = [...macros.imports];
+  const allImports = [...macros.imports, ...autoImported];
   addVueImport(allImports, 'defineComponent');
   const merged = mergeImports(allImports, additionalImports);
 
@@ -102,6 +107,7 @@ function fromScriptSetup(
     'defineSlots',
     'defineExpose',
     'defineOptions',
+    'defineModel',
     'withDefaults',
   ]);
   for (const imp of merged) {
@@ -125,10 +131,26 @@ function fromScriptSetup(
     options.push(`  emits: ${emitsOption},`);
   }
 
+  // Models require props and emit in setup signature, and computed import
+  const hasModels = macros.models.length > 0;
+  if (hasModels) {
+    addVueImport(allImports, 'computed');
+    // Re-merge to include computed
+    const reMerged = mergeImports(allImports, additionalImports);
+    for (const imp of reMerged) {
+      if (imp.source === 'vue') {
+        imp.namedImports = imp.namedImports.filter((n) => !vueMacroNames.has(n.imported));
+      }
+    }
+    // Update merged in place
+    merged.length = 0;
+    merged.push(...reMerged);
+  }
+
   // Determine setup parameters
   const setupParams: string[] = [];
-  const hasProps = macros.props !== null;
-  const hasEmits = macros.emits !== null;
+  const hasProps = macros.props !== null || hasModels;
+  const hasEmits = macros.emits !== null || hasModels;
 
   if (hasProps) {
     const propsType = macros.props?.type;
@@ -156,6 +178,17 @@ function fromScriptSetup(
 
   // Build setup body
   const bodyLines: string[] = [];
+
+  // Generate computed get/set for each defineModel
+  for (const model of macros.models) {
+    const propName = model.name ?? 'modelValue';
+    const typeAnnotation = model.type ? `<${model.type}>` : '';
+    bodyLines.push(`const ${model.variableName} = computed${typeAnnotation}({`);
+    bodyLines.push(`  get: () => props.${propName},`);
+    bodyLines.push(`  set: (val) => emit('update:${propName}', val)`);
+    bodyLines.push(`})`);
+  }
+
   if (macros.body) {
     bodyLines.push(macros.body);
   }

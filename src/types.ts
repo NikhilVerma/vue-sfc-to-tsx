@@ -104,10 +104,23 @@ export interface ExtractedMacros {
   expose: { runtime?: string } | null;
   /** defineOptions argument */
   options: { runtime?: string } | null;
+  /** defineModel macro calls (Vue 3.4+) */
+  models: ModelMacro[];
   /** The remaining script body after macro removal */
   body: string;
   /** Imports extracted from the script */
   imports: ImportInfo[];
+}
+
+export interface ModelMacro {
+  /** Variable name assigned to (e.g., "visible") */
+  variableName: string;
+  /** Model name (e.g., "visible"). Null = default "modelValue" */
+  name: string | null;
+  /** Type parameter (e.g., "boolean") */
+  type?: string;
+  /** Options object string (e.g., "{ default: false }") */
+  options?: string;
 }
 
 export interface ImportInfo {

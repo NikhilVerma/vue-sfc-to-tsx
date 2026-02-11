@@ -196,6 +196,71 @@ describe('template globals and setup context', () => {
   });
 });
 
+describe('defineModel integration', () => {
+  test('single unnamed defineModel produces computed + props + emits', async () => {
+    const input = `<template><div>{{ modelValue }}</div></template>
+<script setup lang="ts">
+const modelValue = defineModel<string>()
+</script>`;
+    const result = await convert(input, { componentName: 'ModelTest' });
+
+    // Should not contain the raw defineModel macro
+    expect(result.tsx).not.toContain('defineModel');
+    // Should have computed import
+    expect(result.tsx).toContain('computed');
+    // Should generate computed get/set for modelValue
+    expect(result.tsx).toContain('const modelValue = computed<string>({');
+    expect(result.tsx).toContain('props.modelValue');
+    expect(result.tsx).toContain("emit('update:modelValue'");
+    // Should have emit in setup context
+    expect(result.tsx).toMatch(/setup\([^)]*emit/);
+  });
+
+  test('named defineModel generates correct prop and emit names', async () => {
+    const input = `<template><div>{{ visible }}</div></template>
+<script setup lang="ts">
+const visible = defineModel<boolean>("visible", { default: false })
+</script>`;
+    const result = await convert(input, { componentName: 'NamedModel' });
+
+    expect(result.tsx).not.toContain('defineModel');
+    expect(result.tsx).toContain('const visible = computed<boolean>({');
+    expect(result.tsx).toContain('props.visible');
+    expect(result.tsx).toContain("emit('update:visible'");
+  });
+
+  test('multiple defineModel calls generate multiple computeds', async () => {
+    const input = `<template><div>{{ modelValue }} {{ visible }}</div></template>
+<script setup lang="ts">
+const modelValue = defineModel<string>()
+const visible = defineModel<boolean>("visible")
+</script>`;
+    const result = await convert(input, { componentName: 'MultiModel' });
+
+    expect(result.tsx).not.toContain('defineModel');
+    expect(result.tsx).toContain('const modelValue = computed<string>({');
+    expect(result.tsx).toContain('const visible = computed<boolean>({');
+    expect(result.tsx).toContain("emit('update:modelValue'");
+    expect(result.tsx).toContain("emit('update:visible'");
+  });
+
+  test('defineModel alongside defineProps and defineEmits', async () => {
+    const input = `<template><div>{{ label }} {{ modelValue }}</div></template>
+<script setup lang="ts">
+const props = defineProps<{ label: string }>()
+const emit = defineEmits<{ (e: 'click'): void }>()
+const modelValue = defineModel<string>()
+</script>`;
+    const result = await convert(input, { componentName: 'MixedMacros' });
+
+    expect(result.tsx).not.toContain('defineModel');
+    expect(result.tsx).not.toContain('defineProps');
+    expect(result.tsx).not.toContain('defineEmits');
+    expect(result.tsx).toContain('const modelValue = computed<string>({');
+    expect(result.tsx).toContain('defineComponent');
+  });
+});
+
 describe('fixture comparison', () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, 'input.vue')),

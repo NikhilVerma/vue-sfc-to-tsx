@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { convert } from './index';
 import { basename, join, resolve, dirname } from 'path';
+import { watch as fsWatch } from 'fs';
 import { Glob } from 'bun';
 
 interface CliOptions {
@@ -9,6 +10,7 @@ interface CliOptions {
   llm: boolean;
   dryRun: boolean;
   delete: boolean;
+  watch: boolean;
   help: boolean;
 }
 
@@ -26,6 +28,7 @@ Options:
   --llm            Enable LLM fallback for unconvertible patterns
   --dry-run        Show what would be written without writing files
   --delete         Delete original .vue files after successful conversion
+  --watch, -w      Watch files for changes and re-convert on save
   --help           Show this help message
 
 Examples:
@@ -42,6 +45,7 @@ function parseArgs(argv: string[]): CliOptions {
     llm: false,
     dryRun: false,
     delete: false,
+    watch: false,
     help: false,
   };
 
@@ -55,6 +59,8 @@ function parseArgs(argv: string[]): CliOptions {
       opts.dryRun = true;
     } else if (arg === '--delete') {
       opts.delete = true;
+    } else if (arg === '--watch' || arg === '-w') {
+      opts.watch = true;
     } else if (arg === '--out-dir') {
       i++;
       if (!args[i]) {
@@ -123,78 +129,135 @@ async function main() {
     process.exit(1);
   }
 
-  let converted = 0;
-  let deleted = 0;
-  let warnings = 0;
-  let errors = 0;
+  const stats = { converted: 0, deleted: 0, cssModules: 0, warnings: 0, fallbacks: 0, errors: 0 };
 
   for (const file of files) {
-    const componentName = componentNameFromFile(file);
-    const source = await Bun.file(file).text();
+    await convertSingleFile(file, opts, stats);
+  }
 
+  const parts = [
+    `${stats.converted} converted`,
+    `${stats.cssModules} css module${stats.cssModules !== 1 ? 's' : ''}`,
+    `${stats.deleted} deleted`,
+    `${stats.warnings} warning${stats.warnings !== 1 ? 's' : ''}`,
+    `${stats.fallbacks} fallback${stats.fallbacks !== 1 ? 's' : ''}`,
+    `${stats.errors} error${stats.errors !== 1 ? 's' : ''}`,
+  ];
+  console.log(`\nDone: ${parts.join(', ')}.`);
+
+  if (opts.watch) {
+    watchFiles(files, opts);
+  } else if (stats.errors > 0) {
+    process.exit(1);
+  }
+}
+
+interface ConvertStats {
+  converted: number;
+  deleted: number;
+  cssModules: number;
+  warnings: number;
+  fallbacks: number;
+  errors: number;
+}
+
+async function convertSingleFile(file: string, opts: CliOptions, stats: ConvertStats): Promise<boolean> {
+  const componentName = componentNameFromFile(file);
+  let source: string;
+  try {
+    source = await Bun.file(file).text();
+  } catch {
+    console.error(`Error reading ${file}: file not found`);
+    stats.errors++;
+    return false;
+  }
+
+  try {
+    const result = await convert(source, {
+      componentName,
+      llm: opts.llm,
+    });
+
+    if (result.warnings.length > 0) {
+      stats.warnings += result.warnings.length;
+      for (const w of result.warnings) {
+        console.warn(`  warn: ${file}: ${w.message}`);
+      }
+    }
+    stats.fallbacks += result.fallbacks.length;
+
+    const outBase = opts.outDir
+      ? join(resolve(opts.outDir), basename(file, '.vue'))
+      : join(dirname(file), basename(file, '.vue'));
+
+    const tsxPath = `${outBase}.tsx`;
+    const cssPath = result.cssFilename
+      ? join(dirname(outBase), result.cssFilename)
+      : null;
+
+    if (opts.dryRun) {
+      console.log(`[dry-run] ${file} → ${tsxPath}`);
+      if (cssPath) {
+        console.log(`[dry-run] ${file} → ${cssPath}`);
+      }
+      if (opts.delete) {
+        console.log(`[dry-run] would delete ${file}`);
+      }
+    } else {
+      await Bun.write(tsxPath, result.tsx);
+      if (cssPath && result.css) {
+        await Bun.write(cssPath, result.css);
+        stats.cssModules++;
+      }
+      console.log(`${file} → ${tsxPath}`);
+      if (cssPath) {
+        console.log(`${file} → ${cssPath}`);
+      }
+      if (opts.delete) {
+        const { unlink } = await import('fs/promises');
+        await unlink(file);
+        stats.deleted++;
+        console.log(`  deleted ${file}`);
+      }
+    }
+
+    stats.converted++;
+    return true;
+  } catch (err: any) {
+    stats.errors++;
+    console.error(`Error converting ${file}: ${err.message}`);
+    return false;
+  }
+}
+
+function watchFiles(files: string[], opts: CliOptions) {
+  console.log(`\n[watch] Watching ${files.length} file(s) for changes...`);
+
+  const watchers: ReturnType<typeof fsWatch>[] = [];
+
+  for (const file of files) {
     try {
-      const result = await convert(source, {
-        componentName,
-        llm: opts.llm,
+      const watcher = fsWatch(file, async (_eventType) => {
+        const name = basename(file);
+        console.log(`[watch] Reconverting ${name}...`);
+        const stats: ConvertStats = { converted: 0, deleted: 0, cssModules: 0, warnings: 0, fallbacks: 0, errors: 0 };
+        try {
+          await convertSingleFile(file, opts, stats);
+        } catch (err: any) {
+          console.error(`[watch] Error: ${err.message}`);
+        }
       });
-
-      if (result.warnings.length > 0) {
-        warnings += result.warnings.length;
-        for (const w of result.warnings) {
-          console.warn(`  warn: ${file}: ${w.message}`);
-        }
-      }
-
-      // Determine output paths
-      const outBase = opts.outDir
-        ? join(resolve(opts.outDir), basename(file, '.vue'))
-        : join(dirname(file), basename(file, '.vue'));
-
-      const tsxPath = `${outBase}.tsx`;
-      const cssPath = result.cssFilename
-        ? join(dirname(outBase), result.cssFilename)
-        : null;
-
-      if (opts.dryRun) {
-        console.log(`[dry-run] ${file} → ${tsxPath}`);
-        if (cssPath) {
-          console.log(`[dry-run] ${file} → ${cssPath}`);
-        }
-        if (opts.delete) {
-          console.log(`[dry-run] would delete ${file}`);
-        }
-      } else {
-        await Bun.write(tsxPath, result.tsx);
-        if (cssPath && result.css) {
-          await Bun.write(cssPath, result.css);
-        }
-        console.log(`${file} → ${tsxPath}`);
-        if (cssPath) {
-          console.log(`${file} → ${cssPath}`);
-        }
-        if (opts.delete) {
-          const { unlink } = await import('fs/promises');
-          await unlink(file);
-          deleted++;
-          console.log(`  deleted ${file}`);
-        }
-      }
-
-      converted++;
-    } catch (err: any) {
-      errors++;
-      console.error(`Error converting ${file}: ${err.message}`);
+      watchers.push(watcher);
+    } catch {
+      // File may have been deleted; skip it
     }
   }
 
-  const parts = [`${converted} file(s) converted`];
-  if (deleted > 0) parts.push(`${deleted} deleted`);
-  parts.push(`${warnings} warning(s)`, `${errors} error(s)`);
-  console.log(`\nDone: ${parts.join(', ')}.`);
-
-  if (errors > 0) {
-    process.exit(1);
-  }
+  process.on('SIGINT', () => {
+    for (const w of watchers) w.close();
+    console.log('\n[watch] Stopped.');
+    process.exit(0);
+  });
 }
 
 main();

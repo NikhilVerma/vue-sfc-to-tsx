@@ -207,4 +207,119 @@ import { ref as myRef } from 'vue'
     expect(result.imports).toHaveLength(1);
     expect(result.imports[0].namedImports).toEqual([{ imported: 'ref', local: 'myRef' }]);
   });
+
+  describe('defineModel', () => {
+    test('extracts single unnamed defineModel', () => {
+      const script = `
+const modelValue = defineModel<string>()
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('modelValue');
+      expect(result.models[0].name).toBeNull();
+      expect(result.models[0].type).toBe('string');
+      expect(result.models[0].options).toBeUndefined();
+      expect(result.body).toBe('');
+    });
+
+    test('extracts named defineModel', () => {
+      const script = `
+const visible = defineModel<boolean>("visible")
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('visible');
+      expect(result.models[0].name).toBe('visible');
+      expect(result.models[0].type).toBe('boolean');
+      expect(result.models[0].options).toBeUndefined();
+      expect(result.body).toBe('');
+    });
+
+    test('extracts named defineModel with options', () => {
+      const script = `
+const visible = defineModel<boolean>("visible", { default: false })
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('visible');
+      expect(result.models[0].name).toBe('visible');
+      expect(result.models[0].type).toBe('boolean');
+      expect(result.models[0].options).toBe('{ default: false }');
+      expect(result.body).toBe('');
+    });
+
+    test('extracts multiple defineModel calls', () => {
+      const script = `
+const modelValue = defineModel<string>()
+const visible = defineModel<boolean>("visible", { default: false })
+const title = defineModel<string>("title")
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(3);
+      expect(result.models[0].variableName).toBe('modelValue');
+      expect(result.models[0].name).toBeNull();
+      expect(result.models[1].variableName).toBe('visible');
+      expect(result.models[1].name).toBe('visible');
+      expect(result.models[1].options).toBe('{ default: false }');
+      expect(result.models[2].variableName).toBe('title');
+      expect(result.models[2].name).toBe('title');
+      expect(result.body).toBe('');
+    });
+
+    test('extracts defineModel alongside defineProps and defineEmits', () => {
+      const script = `
+import { ref } from 'vue'
+
+const props = defineProps<{ label: string }>()
+const emit = defineEmits<{ (e: 'click'): void }>()
+const modelValue = defineModel<string>()
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      expect(result.props).not.toBeNull();
+      expect(result.props!.type).toBe('{ label: string }');
+      expect(result.emits).not.toBeNull();
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('modelValue');
+      expect(result.body).toBe('const count = ref(0)');
+    });
+
+    test('extracts defineModel with required option', () => {
+      const script = `
+const title = defineModel<string>("title", { required: true })
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('title');
+      expect(result.models[0].name).toBe('title');
+      expect(result.models[0].options).toBe('{ required: true }');
+    });
+
+    test('extracts defineModel without type parameter', () => {
+      const script = `
+const modelValue = defineModel()
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].variableName).toBe('modelValue');
+      expect(result.models[0].name).toBeNull();
+      expect(result.models[0].type).toBeUndefined();
+    });
+
+    test('returns empty models array when no defineModel present', () => {
+      const script = `
+const count = ref(0)
+`;
+      const result = extractMacros(script);
+
+      expect(result.models).toEqual([]);
+    });
+  });
 });
