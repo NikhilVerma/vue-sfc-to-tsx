@@ -122,6 +122,24 @@ console.log(result.fallbacks);  // Items that need manual review
 
 4. **LLM fallback** -- When a template pattern can't be converted deterministically (e.g., complex custom directives), it's marked with a fallback comment. With `--llm` enabled, these are sent to an LLM for resolution.
 
+## Key differences between Vue SFC and TSX
+
+Vue SFC templates are forgiving by design -- they silently handle things that would be errors in plain TypeScript. This convenience has a cost: it hides real bugs and makes code harder to reason about. TSX is explicit. The table below shows what vue-to-tsx does to bridge the gap, and why the TSX version is often the better one.
+
+| Vue SFC (implicit) | Generated TSX (explicit) | Why it matters |
+|---|---|---|
+| `{{ count }}` auto-unwraps refs | `{count.value}` | In TSX, refs are regular objects. You must access `.value` explicitly. This catches bugs where you forget to create a ref in the first place. |
+| `{{ title }}` auto-exposes props | `{props.title}` | Vue templates magically expose prop names as local variables. TSX makes the data source clear -- you always know when something comes from props. |
+| `v-for="item in obj"` works on arrays, objects, and numbers | `_renderList(obj, (item) => ...)` | Vue's `v-for` silently iterates objects via `Object.keys()` and generates ranges from numbers. TSX has no such magic -- `_renderList` is a runtime helper that matches Vue's behavior exactly. |
+| `const x = useLocalStorage(...)` auto-unwrapped in template | `x.value` in JSX | Vue templates auto-unwrap any ref, but TSX can't. The converter detects `use*` composable return values (following Vue's naming convention) and adds `.value`. |
+| `<Teleport>`, `<KeepAlive>`, etc. resolve magically | `import { Teleport } from 'vue'` | Vue's compiler knows about built-in components. In TSX, they're just identifiers -- they need explicit imports like anything else. |
+| `@click.prevent="handler"` | `onClick={withModifiers(handler, ['prevent'])}` | Event modifiers are template-only syntax. TSX uses Vue's `withModifiers` runtime helper. |
+| `$attrs`, `$slots`, `$emit` | `attrs`, `slots`, `emit` from `setup()` context | Template globals don't exist in TSX. They come from the setup function's second argument. |
+| `<script setup>` macros (`defineProps`, `defineEmits`) | `defineComponent({ props: {...}, emits: [...] })` | Compiler macros are template-only magic. TSX uses standard `defineComponent` options. Type-based `defineEmits` is converted to a runtime `emits` array. |
+| `import Foo from './Foo.vue'` | `import Foo from './Foo'` | `.vue` extensions are stripped since you're importing `.tsx` files now. |
+| `<style scoped>` | CSS modules (`.module.css`) | Scoped styles use data attributes that only work with Vue's compiler. CSS modules are a standard, framework-agnostic alternative. |
+| `class="foo" :class="{ active: x }"` (two attributes) | `class={['foo', { active: x }]}` (merged) | Vue templates merge multiple `class` attributes at runtime. JSX doesn't -- duplicate props overwrite each other. The converter merges them into one. |
+
 ## Output formatting
 
 The converter produces syntactically valid TSX but does not format or prettify it. Run your project's formatter on the output files to match your codebase style:
