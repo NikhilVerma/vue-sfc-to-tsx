@@ -25,6 +25,7 @@
   "scripts": {
     "test": "bun test",
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --external @vue/compiler-sfc --external @vue/compiler-dom --external @vue/compiler-core --external ai --external @ai-sdk/anthropic --external @ai-sdk/openai --external magic-string",
+    "prepublishOnly": "bun test && bun run build",
     "lint": "oxlint src/",
     "playground": "bun run src/playground/server.ts"
   },
