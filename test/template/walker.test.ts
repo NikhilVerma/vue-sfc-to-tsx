@@ -168,6 +168,16 @@ describe("props prefixing", () => {
   });
 });
 
+describe("ref .value in template literal interpolation", () => {
+  test("ref inside template literal interpolation is NOT treated as shorthand", () => {
+    const result = toJsx('<div :style="`transform: scale(${scale})`">text</div>', {
+      refIdentifiers: new Set(["scale"]),
+    });
+    expect(result).toContain("${scale.value}");
+    expect(result).not.toContain("scale: scale.value");
+  });
+});
+
 describe("ref .value in object shorthand", () => {
   test("ref in object shorthand expands to key-value pair", () => {
     const result = toJsx('<div :data="fn({ count })">text</div>', {

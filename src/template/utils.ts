@@ -179,14 +179,7 @@ function appendRefValue(expr: string, refs: Set<string>): string {
         // It's a colon after the identifier — could be object key or ternary
         // Look at what comes before: if we're inside `{ ... name:` or `, name:` it's an object key
         const before = result.slice(0, offset);
-        // Count unmatched `{` before this position (simple brace depth check)
-        let braceDepth = 0;
-        for (let i = 0; i < before.length; i++) {
-          if (before[i] === "{") braceDepth++;
-          else if (before[i] === "}") braceDepth--;
-        }
-        // If we're inside braces, this is an object key — don't add .value
-        if (braceDepth > 0) {
+        if (objectBraceDepth(before) > 0) {
           return match;
         }
       }
@@ -194,12 +187,7 @@ function appendRefValue(expr: string, refs: Set<string>): string {
       // Must be inside braces, followed by `,` or `}`, and NOT preceded by `:`
       // (preceded by `:` means it's already a value in `key: value` position)
       const beforeStr = result.slice(0, offset);
-      let bd = 0;
-      for (let i = 0; i < beforeStr.length; i++) {
-        if (beforeStr[i] === "{") bd++;
-        else if (beforeStr[i] === "}") bd--;
-      }
-      if (bd > 0 && !isAfterColon(beforeStr)) {
+      if (objectBraceDepth(beforeStr) > 0 && !isAfterColon(beforeStr)) {
         const afterStr = result.slice(offset + match.length);
         const afterMatch = afterStr.match(/^\s*(.)/);
         const nextCh = afterMatch ? afterMatch[1] : "";
@@ -218,6 +206,58 @@ function appendRefValue(expr: string, refs: Set<string>): string {
 function isAfterColon(before: string): boolean {
   const trimmed = before.trimEnd();
   return trimmed.endsWith(":");
+}
+
+/**
+ * Count object-literal brace depth at the end of a string.
+ * Skips template literal interpolation braces (`${...}`) so they don't
+ * incorrectly count as object literal braces.
+ */
+function objectBraceDepth(str: string): number {
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let interpDepth = 0;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    const next = str[i + 1];
+
+    // Skip escaped chars inside strings
+    if (ch === "\\" && (inSingle || inDouble || inTemplate)) {
+      i++;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && !inTemplate) {
+      if (ch === "'") inSingle = true;
+      else if (ch === '"') inDouble = true;
+      else if (ch === "`") inTemplate = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") depth--;
+    } else if (inSingle && ch === "'") {
+      inSingle = false;
+    } else if (inDouble && ch === '"') {
+      inDouble = false;
+    } else if (inTemplate) {
+      if (ch === "`" && interpDepth === 0) {
+        inTemplate = false;
+      } else if (ch === "$" && next === "{" && interpDepth === 0) {
+        interpDepth++;
+        i++; // skip the {
+      } else if (ch === "{" && interpDepth > 0) {
+        interpDepth++;
+      } else if (ch === "}" && interpDepth > 0) {
+        interpDepth--;
+        if (interpDepth === 0) {
+          // Back in template literal, not object context
+        }
+      }
+    }
+  }
+
+  return depth;
 }
 
 /**
@@ -243,23 +283,13 @@ function prefixProps(expr: string, propNames: Set<string>): string {
       const colonMatch = after.match(/^\s*:/);
       if (colonMatch) {
         const beforeStr = result.slice(0, offset);
-        let braceDepth = 0;
-        for (let i = 0; i < beforeStr.length; i++) {
-          if (beforeStr[i] === "{") braceDepth++;
-          else if (beforeStr[i] === "}") braceDepth--;
-        }
-        if (braceDepth > 0) return match;
+        if (objectBraceDepth(beforeStr) > 0) return match;
       }
 
       // Check if in object shorthand position: `{ variant }` or `{ variant, ... }`
       // Must be inside braces, followed by `,` or `}`, and NOT preceded by `:`
       const beforeStr = result.slice(0, offset);
-      let braceDepth = 0;
-      for (let i = 0; i < beforeStr.length; i++) {
-        if (beforeStr[i] === "{") braceDepth++;
-        else if (beforeStr[i] === "}") braceDepth--;
-      }
-      if (braceDepth > 0 && !isAfterColon(beforeStr)) {
+      if (objectBraceDepth(beforeStr) > 0 && !isAfterColon(beforeStr)) {
         const afterTrimmed = after.match(/^\s*(.)/);
         const nextChar = afterTrimmed ? afterTrimmed[1] : "";
         if (nextChar === "," || nextChar === "}") {
