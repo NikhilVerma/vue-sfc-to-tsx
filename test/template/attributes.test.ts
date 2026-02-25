@@ -80,6 +80,18 @@ describe("generateAttributes", () => {
       expect(attrsFor('<div :key="item.id"></div>')).toBe(" key={item.id}");
     });
 
+    test("hyphenated prop name", () => {
+      expect(attrsFor('<Lineage :node-size="{ width: 200, height: 52 }"></Lineage>')).toBe(
+        " node-size={{ width: 200, height: 52 }}",
+      );
+    });
+
+    test("multiple hyphenated prop names", () => {
+      expect(
+        attrsFor('<Lineage :children-node-size="{ width: 200 }" :gap="100"></Lineage>'),
+      ).toBe(" children-node-size={{ width: 200 }} gap={100}");
+    });
+
     test('v-bind="obj" spread', () => {
       const el = getFirstElement('<div v-bind="attrs"></div>');
       const result = generateAttributes(el, makeCtx());

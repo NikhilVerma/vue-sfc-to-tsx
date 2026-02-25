@@ -10,8 +10,8 @@ export function generateFallbackComment(item: FallbackItem): string {
 type Provider = "anthropic" | "openai";
 
 const DEFAULT_MODELS: Record<Provider, string> = {
-  anthropic: "claude-sonnet-4-5",
-  openai: "gpt-4o",
+  anthropic: "claude-sonnet-4-6",
+  openai: "gpt-5.2-codex",
 };
 
 /**
@@ -38,7 +38,7 @@ export function detectProvider(): Provider | null {
 export async function resolveFallbacks(
   fallbacks: FallbackItem[],
   componentName: string,
-  options?: { model?: string },
+  options?: { model?: string; sourceVue?: string; generatedTsx?: string },
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
 
@@ -56,7 +56,7 @@ export async function resolveFallbacks(
 
   const { generateText } = await import("ai");
 
-  const prompt = buildPrompt(fallbacks, componentName);
+  const prompt = buildPrompt(fallbacks, componentName, options?.sourceVue, options?.generatedTsx);
 
   try {
     let modelInstance: Parameters<typeof generateText>[0]["model"];
@@ -84,20 +84,47 @@ export async function resolveFallbacks(
 /**
  * Build the prompt for the LLM with all fallback items.
  */
-export function buildPrompt(fallbacks: FallbackItem[], componentName: string): string {
+export function buildPrompt(
+  fallbacks: FallbackItem[],
+  componentName: string,
+  sourceVue?: string,
+  generatedTsx?: string,
+): string {
   const items = fallbacks
     .map((f, i) => `[${i + 1}] Reason: ${f.reason}\n    Source: ${f.source}`)
     .join("\n\n");
 
+  let context = "";
+  if (sourceVue) {
+    context += `\n\n## Original Vue SFC\n\`\`\`vue\n${sourceVue}\n\`\`\``;
+  }
+  if (generatedTsx) {
+    context += `\n\n## Generated TSX (so far)\n\`\`\`tsx\n${generatedTsx}\n\`\`\``;
+  }
+
   return `You are converting Vue Single File Components to Vue TSX (NOT React).
 Keep Vue's reactive model (ref, computed, etc.). The component is "${componentName}".
+${context}
 
 Convert each of these Vue template snippets to valid Vue JSX syntax.
 Return ONLY a JSON array where each element is the JSX string replacement for the corresponding item.
+Each replacement must be valid JSX — do NOT return Vue template syntax (no v-if, v-for, v-model, @click, etc.).
 
 ${items}
 
 Respond with a JSON array of strings, one per item. Example: ["<div className={styles.foo} />", "<span>{bar.value}</span>"]`;
+}
+
+/** Vue template syntax patterns that should never appear in JSX output */
+const VUE_TEMPLATE_PATTERNS = /\b(v-if|v-else-if|v-else|v-for|v-model|v-show|v-bind|v-on|v-slot|v-html|v-text)\b|@\w+=/;
+
+/**
+ * Validate that a replacement looks like valid JSX, not Vue template syntax.
+ */
+export function validateReplacement(replacement: string): boolean {
+  if (!replacement.trim()) return false;
+  if (VUE_TEMPLATE_PATTERNS.test(replacement)) return false;
+  return true;
 }
 
 /**
@@ -114,7 +141,7 @@ function parseResponse(text: string, fallbacks: FallbackItem[]): Map<string, str
     const replacements: string[] = JSON.parse(jsonMatch[0]);
 
     for (let i = 0; i < Math.min(replacements.length, fallbacks.length); i++) {
-      if (typeof replacements[i] === "string" && replacements[i].trim()) {
+      if (typeof replacements[i] === "string" && validateReplacement(replacements[i])) {
         result.set(fallbacks[i].source, replacements[i]);
       }
     }

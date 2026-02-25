@@ -60,7 +60,10 @@ export function processSlot(
   ctx.usedContextMembers.add("slots");
 
   const propsArg = slotProps.length > 0 ? `{ ${slotProps.join(", ")} }` : "";
-  const slotAccess = isDynamicName ? `slots[${slotName}]` : `slots.${slotName}`;
+  const needsBracket = isDynamicName || !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(slotName);
+  const slotAccess = needsBracket
+    ? (isDynamicName ? `slots[${slotName}]` : `slots['${slotName}']`)
+    : `slots.${slotName}`;
 
   const call = `${slotAccess}?.(${propsArg})`;
 
@@ -158,7 +161,9 @@ export function formatSlotEntries(entries: SlotEntry[]): string {
       : entry.content.trim().startsWith("<")
         ? entry.content
         : `<>${entry.content}</>`;
-    return `${entry.name}: ${params} => ${content}`;
+    const needsQuotes = !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(entry.name);
+    const safeName = needsQuotes ? `'${entry.name}'` : entry.name;
+    return `${safeName}: ${params} => ${content}`;
   });
 
   return `{{${"\n"}${slotParts.map((p) => `  ${p}`).join(",\n")}${"\n"}}}`;

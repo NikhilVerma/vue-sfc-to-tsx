@@ -4,6 +4,7 @@ import {
   resolveFallbacks,
   buildPrompt,
   detectProvider,
+  validateReplacement,
 } from "../../src/llm/index";
 import type { FallbackItem } from "../../src/types";
 
@@ -50,6 +51,53 @@ describe("buildPrompt", () => {
     expect(prompt).toContain('<div v-click-outside="handler" />');
     expect(prompt).toContain("[1]");
     expect(prompt).toContain("[2]");
+  });
+
+  test("includes Vue source and generated TSX when provided", () => {
+    const fallbacks: FallbackItem[] = [
+      { source: "<input v-focus />", reason: "Custom directive v-focus" },
+    ];
+    const sourceVue = '<template><input v-focus /></template>\n<script setup lang="ts"></script>';
+    const generatedTsx = 'export default defineComponent({ setup() { return () => <input />; } })';
+    const prompt = buildPrompt(fallbacks, "MyForm", sourceVue, generatedTsx);
+
+    expect(prompt).toContain("## Original Vue SFC");
+    expect(prompt).toContain(sourceVue);
+    expect(prompt).toContain("## Generated TSX (so far)");
+    expect(prompt).toContain(generatedTsx);
+  });
+
+  test("omits context sections when not provided", () => {
+    const fallbacks: FallbackItem[] = [
+      { source: "<input v-focus />", reason: "Custom directive v-focus" },
+    ];
+    const prompt = buildPrompt(fallbacks, "MyForm");
+
+    expect(prompt).not.toContain("## Original Vue SFC");
+    expect(prompt).not.toContain("## Generated TSX");
+  });
+});
+
+describe("validateReplacement", () => {
+  test("accepts valid JSX", () => {
+    expect(validateReplacement("<div className={styles.foo} />")).toBe(true);
+    expect(validateReplacement("<input ref={focusRef} />")).toBe(true);
+    expect(validateReplacement("{bar.value}")).toBe(true);
+  });
+
+  test("rejects empty or whitespace-only strings", () => {
+    expect(validateReplacement("")).toBe(false);
+    expect(validateReplacement("   ")).toBe(false);
+  });
+
+  test("rejects Vue template syntax", () => {
+    expect(validateReplacement('<div v-if="show">hello</div>')).toBe(false);
+    expect(validateReplacement('<div v-for="item in items" />')).toBe(false);
+    expect(validateReplacement('<input v-model="name" />')).toBe(false);
+    expect(validateReplacement('<div v-show="visible" />')).toBe(false);
+    expect(validateReplacement('<button @click="handler">ok</button>')).toBe(false);
+    expect(validateReplacement('<div v-html="content" />')).toBe(false);
+    expect(validateReplacement('<slot v-slot:header />')).toBe(false);
   });
 });
 

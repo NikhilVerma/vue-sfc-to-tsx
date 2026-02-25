@@ -213,7 +213,7 @@ vue-to-tsx src/components/ --llm
 
 ### Model override
 
-Default models: `claude-sonnet-4-5` (Anthropic), `gpt-4o` (OpenAI). Override via CLI flag or env var:
+Default models: `claude-sonnet-4-6` (Anthropic), `gpt-5.2-codex` (OpenAI). Override via CLI flag or env var:
 
 ```bash
 # CLI flag
@@ -223,13 +223,17 @@ vue-to-tsx src/components/ --llm --llm-model gpt-4o-mini
 export VUE_TO_TSX_LLM_MODEL=claude-haiku-4-5-20251001
 ```
 
+### Context-aware healing
+
+The LLM receives the full original Vue SFC and the generated TSX so far, giving it complete context to produce accurate replacements. Responses are validated to reject any output that still contains Vue template syntax (`v-if`, `v-for`, `@click`, etc.) — invalid replacements are discarded and the TODO fallback comment is preserved.
+
 ### Programmatic usage
 
 ```ts
 const result = await convert(source, {
   componentName: 'MyComponent',
   llm: true,
-  llmModel: 'claude-sonnet-4-5',
+  llmModel: 'claude-sonnet-4-6',
 });
 ```
 

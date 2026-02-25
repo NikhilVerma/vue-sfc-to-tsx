@@ -60,7 +60,7 @@ export interface ConvertOptions {
   componentName?: string;
   /** Enable LLM fallback for unconvertible patterns */
   llm?: boolean;
-  /** LLM model to use (default: claude-sonnet-4-5) */
+  /** LLM model to use (default: claude-sonnet-4-6) */
   llmModel?: string;
 }
 

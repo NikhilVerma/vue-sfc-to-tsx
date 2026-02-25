@@ -42,6 +42,11 @@ describe("slot outlet (<slot>)", () => {
     expect(result).toContain("??");
   });
 
+  test("hyphenated slot outlet name uses bracket notation", () => {
+    const result = toJsx('<slot name="node-template"></slot>');
+    expect(result).toBe("{slots['node-template']?.()}");
+  });
+
   test("named slot with props", () => {
     const result = toJsx('<slot name="item" :item="item" :index="i"></slot>');
     expect(result).toContain("slots.item");
@@ -55,6 +60,21 @@ describe("slot content on components", () => {
     const result = toJsx('<MyComp v-slot="{ item }"><div>{{ item }}</div></MyComp>');
     expect(result).toContain("MyComp");
     expect(result).toContain("item");
+  });
+
+  test("hyphenated slot names are quoted in object literal", () => {
+    const result = toJsx(`
+      <Lineage>
+        <template #node-template="{ node }">
+          <div>{{ node.name }}</div>
+        </template>
+        <template #child-node-template="{ node }">
+          <span>{{ node.name }}</span>
+        </template>
+      </Lineage>
+    `);
+    expect(result).toContain("'node-template':");
+    expect(result).toContain("'child-node-template':");
   });
 
   test("component with named slot templates", () => {

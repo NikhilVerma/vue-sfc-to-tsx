@@ -121,6 +121,8 @@ export async function convert(source: string, options?: ConvertOptions): Promise
   if (options?.llm && ctx.fallbacks.length > 0) {
     const replacements = await resolveFallbacks(ctx.fallbacks, componentName, {
       model: options.llmModel,
+      sourceVue: source,
+      generatedTsx: tsx,
     });
     for (const [originalSource, replacement] of replacements) {
       const comment = generateFallbackComment({
