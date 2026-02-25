@@ -3,6 +3,7 @@ import { convert } from "./index";
 import { basename, join, resolve, dirname } from "path";
 import { watch as fsWatch } from "fs";
 import { Glob } from "bun";
+import PQueue from "p-queue";
 
 interface CliOptions {
   patterns: string[];
@@ -141,9 +142,11 @@ async function main() {
 
   const stats = { converted: 0, deleted: 0, cssFiles: 0, warnings: 0, fallbacks: 0, errors: 0 };
 
+  const queue = new PQueue({ concurrency: 50 });
   for (const file of files) {
-    await convertSingleFile(file, opts, stats);
+    queue.add(() => convertSingleFile(file, opts, stats));
   }
+  await queue.onIdle();
 
   const parts = [
     `${stats.converted} converted`,

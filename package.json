@@ -1,6 +1,6 @@
 {
   "name": "vue-to-tsx",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Convert Vue Single File Components (.vue) to Vue TSX (.tsx + .css)",
   "type": "module",
   "license": "MIT",
@@ -51,13 +51,14 @@
     "access": "public"
   },
   "dependencies": {
-    "@vue/compiler-sfc": "^3.5",
-    "@vue/compiler-dom": "^3.5",
-    "@vue/compiler-core": "^3.5",
-    "ai": "^4",
     "@ai-sdk/anthropic": "^1",
     "@ai-sdk/openai": "^1",
-    "magic-string": "^0.30"
+    "@vue/compiler-core": "^3.5",
+    "@vue/compiler-dom": "^3.5",
+    "@vue/compiler-sfc": "^3.5",
+    "ai": "^4",
+    "magic-string": "^0.30",
+    "p-queue": "^9.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
