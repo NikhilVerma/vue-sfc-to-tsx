@@ -122,14 +122,17 @@ function buildTernary(
 
 /**
  * Parse a v-for expression like "item in items" or "(item, index) in items".
+ * Handles multiline expressions by normalizing whitespace first.
  */
 function parseVForExpression(expr: string): { iterator: string; iterable: string } {
-  // Match "X in Y" or "X of Y"
-  const match = expr.match(/^\s*(.+?)\s+(?:in|of)\s+(.+?)\s*$/);
+  // Normalize whitespace (collapse newlines/multiple spaces from multiline expressions)
+  const normalized = expr.replace(/\s+/g, " ").trim();
+  // Match "X in Y" or "X of Y" — use greedy .+ for iterable to capture full expression
+  const match = normalized.match(/^(.+?)\s+(?:in|of)\s+(.+)$/);
   if (!match) {
-    return { iterator: "_item", iterable: expr };
+    return { iterator: "_item", iterable: normalized };
   }
-  return { iterator: match[1], iterable: match[2] };
+  return { iterator: match[1].trim(), iterable: match[2].trim() };
 }
 
 /**

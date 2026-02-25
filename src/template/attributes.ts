@@ -89,7 +89,8 @@ function generateMergedClassWithMap(
 }
 
 function generateStaticAttribute(prop: AttributeNode, ctx: JsxContext): string | null {
-  const name = prop.name;
+  // Strip Vue 2 `.prop` modifier from static attribute names (invalid in JSX)
+  const name = prop.name.replace(/\.prop$/, "");
   const value = prop.value?.content;
 
   // ref="x" → ref={x}

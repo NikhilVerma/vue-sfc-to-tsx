@@ -153,10 +153,13 @@ function findMacro(
   end: number;
   typeParam?: string;
   runtimeArg?: string;
+  /** If the macro was assigned via destructuring, the destructured pattern (e.g. `{ padding = "medium none", isHeader = false }`) */
+  destructuredPattern?: string;
 } | null {
   // Look for the macro call, possibly wrapped in withDefaults for defineProps
+  // Also match destructured form: const { ... } = defineProps(...)
   const re = new RegExp(
-    `(?:(?:const|let|var)\\s+\\w+\\s*=\\s*)?${macroName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+    `(?:(?:const|let|var)\\s+(?:\\w+|\\{[^}]*\\})\\s*=\\s*)?${macroName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
     "g",
   );
 
@@ -164,6 +167,13 @@ function findMacro(
   while ((m = re.exec(content)) !== null) {
     const macroStart = m.index;
     const afterMacro = m.index + m[0].length;
+
+    // Detect destructured pattern
+    let destructuredPattern: string | undefined;
+    const destructMatch = m[0].match(/(?:const|let|var)\s+(\{[^}]*\})\s*=\s*/);
+    if (destructMatch) {
+      destructuredPattern = destructMatch[1];
+    }
 
     let typeParam: string | undefined;
     let runtimeArg: string | undefined;
@@ -201,7 +211,7 @@ function findMacro(
     let start = macroStart;
     while (start > 0 && content[start - 1] !== "\n") start--;
 
-    return { start, end, typeParam, runtimeArg };
+    return { start, end, typeParam, runtimeArg, destructuredPattern };
   }
 
   return null;
@@ -215,14 +225,23 @@ function findWithDefaults(content: string): {
   end: number;
   typeParam: string;
   defaults: string;
+  /** If the macro was assigned via destructuring, the destructured pattern */
+  destructuredPattern?: string;
 } | null {
-  const re = /(?:(?:const|let|var)\s+\w+\s*=\s*)?withDefaults\s*\(/g;
+  const re = /(?:(?:const|let|var)\s+(?:\w+|\{[^}]*\})\s*=\s*)?withDefaults\s*\(/g;
   let m: RegExpExecArray | null;
 
   while ((m = re.exec(content)) !== null) {
     let start = m.index;
     // Find line start
     while (start > 0 && content[start - 1] !== "\n") start--;
+
+    // Detect destructured pattern
+    let destructuredPattern: string | undefined;
+    const destructMatch = m[0].match(/(?:const|let|var)\s+(\{[^}]*\})\s*=\s*/);
+    if (destructMatch) {
+      destructuredPattern = destructMatch[1];
+    }
 
     const outerParenStart = content.indexOf("(", m.index + "withDefaults".length - 1);
     if (outerParenStart === -1) continue;
@@ -265,7 +284,7 @@ function findWithDefaults(content: string): {
     if (content[end] === ";") end++;
     if (content[end] === "\n") end++;
 
-    return { start, end, typeParam, defaults };
+    return { start, end, typeParam, defaults, destructuredPattern };
   }
 
   return null;
@@ -373,7 +392,11 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
   const wd = findWithDefaults(scriptContent);
   if (wd) {
     result.props = { type: wd.typeParam, defaults: wd.defaults };
-    s.remove(wd.start, wd.end);
+    if (wd.destructuredPattern) {
+      s.overwrite(wd.start, wd.end, `const ${wd.destructuredPattern} = props;\n`);
+    } else {
+      s.remove(wd.start, wd.end);
+    }
   }
 
   // Extract defineProps (only if withDefaults didn't already handle it)
@@ -383,7 +406,12 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
       result.props = {};
       if (dp.typeParam) result.props.type = dp.typeParam;
       if (dp.runtimeArg) result.props.runtime = dp.runtimeArg;
-      s.remove(dp.start, dp.end);
+      // If destructured, replace the macro call with `= props;` to preserve destructured assignment
+      if (dp.destructuredPattern) {
+        s.overwrite(dp.start, dp.end, `const ${dp.destructuredPattern} = props;\n`);
+      } else {
+        s.remove(dp.start, dp.end);
+      }
     }
   }
 
@@ -457,6 +485,38 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
 
     while (pos < currentBody.length) {
       const ch = currentBody[pos];
+
+      // Skip string literals and template literals entirely
+      if (ch === "'" || ch === '"') {
+        pos++;
+        while (pos < currentBody.length && currentBody[pos] !== ch) {
+          if (currentBody[pos] === "\\") pos++; // skip escaped char
+          pos++;
+        }
+        pos++; // skip closing quote
+        continue;
+      }
+      if (ch === "`") {
+        pos++;
+        while (pos < currentBody.length && currentBody[pos] !== "`") {
+          if (currentBody[pos] === "\\") {
+            pos++; // skip escaped char
+          } else if (currentBody[pos] === "$" && currentBody[pos + 1] === "{") {
+            // Skip template literal interpolation ${...}
+            pos += 2;
+            let interpDepth = 1;
+            while (pos < currentBody.length && interpDepth > 0) {
+              if (currentBody[pos] === "{") interpDepth++;
+              else if (currentBody[pos] === "}") interpDepth--;
+              if (interpDepth > 0) pos++;
+            }
+          }
+          pos++;
+        }
+        pos++; // skip closing backtick
+        continue;
+      }
+
       if (ch === "{") {
         braceDepth++;
         foundBrace = true;

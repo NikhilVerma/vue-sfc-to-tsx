@@ -354,6 +354,48 @@ const count = 1
       expect(result.body).toBe("const count = 1");
     });
 
+    test("extracts export type with template literal containing ${}", () => {
+      const script = `
+export type FCounterStateProp = "primary" | "secondary" | \`custom, \${string}\`;
+
+type FCounterCategory = "fill" | "outline";
+`;
+      const result = extractMacros(script);
+
+      expect(result.rawExports).toHaveLength(1);
+      expect(result.rawExports[0]).toContain("FCounterStateProp");
+      expect(result.rawExports[0]).toContain("`custom, ${string}`");
+      expect(result.rawExports[0]).toContain(";");
+      // The non-exported type should remain in body
+      expect(result.body).toContain("FCounterCategory");
+    });
+
+    test("withDefaults works when body contains export type with template literal", () => {
+      const script = `
+export type FCounterStateProp = "primary" | "secondary" | \`custom, \${string}\`;
+
+interface Props {
+    size?: string;
+    state?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    size: "small",
+    state: "default"
+});
+
+type FCounterCategory = "fill" | "outline";
+`;
+      const result = extractMacros(script);
+
+      expect(result.props).not.toBeNull();
+      expect(result.props!.type).toBe("Props");
+      expect(result.props!.defaults).toContain('"small"');
+      expect(result.rawExports).toHaveLength(1);
+      expect(result.rawExports[0]).toContain("FCounterStateProp");
+      expect(result.body).toContain("FCounterCategory");
+    });
+
     test("extracts all export forms from body", () => {
       const script = `
 import { ref } from 'vue'
@@ -506,6 +548,60 @@ const count = ref(0)
 
       expect(result.models).toEqual([]);
     });
+  });
+
+  test("extracts destructured defineProps and preserves assignment", () => {
+    const script = `
+const { foo, bar } = defineProps<{ foo: string; bar: number }>()
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toBe("{ foo: string; bar: number }");
+    // Destructured assignment is rewritten to use `props`
+    expect(result.body).toContain("const { foo, bar } = props");
+  });
+
+  test("extracts destructured defineProps with defaults and preserves assignment in body", () => {
+    const script = `
+const { padding = "medium none", isHeader = false } = defineProps<Props>()
+const computedPadding = computed(() => padding)
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toBe("Props");
+    // The destructured assignment must be rewritten to use `props`
+    expect(result.body).toContain('const { padding = "medium none", isHeader = false } = props');
+    expect(result.body).toContain("const computedPadding = computed(() => padding)");
+  });
+
+  test("extracts destructured withDefaults(defineProps) and preserves assignment", () => {
+    const script = `
+const { msg } = withDefaults(defineProps<{ msg?: string }>(), { msg: 'hello' })
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toBe("{ msg?: string }");
+    expect(result.props!.defaults).toBe("{ msg: 'hello' }");
+    // Destructured assignment is rewritten to use `props`
+    expect(result.body).toContain("const { msg } = props");
+  });
+
+  test("extracts destructured withDefaults and preserves assignment in body", () => {
+    const script = `
+const { padding = "medium none", isHeader = false } = withDefaults(defineProps<Props>(), { padding: "medium none", isHeader: false })
+const computedPadding = computed(() => padding)
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toBe("Props");
+    expect(result.props!.defaults).toBe('{ padding: "medium none", isHeader: false }');
+    // The destructured assignment must be rewritten to use `props`
+    expect(result.body).toContain('const { padding = "medium none", isHeader = false } = props');
+    expect(result.body).toContain("const computedPadding = computed(() => padding)");
   });
 });
 

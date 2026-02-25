@@ -7,7 +7,11 @@ export function mergeImports(existing: ImportInfo[], additional: ImportInfo[]): 
   const map = new Map<string, ImportInfo>();
 
   for (const imp of [...existing, ...additional]) {
-    const key = imp.source;
+    // Use composite key: type-only and non-type-only stay separate.
+    // Also, type imports with a default export stay separate from named-only type imports
+    // (so `import type Foo from '...'` and `import type { Bar } from '...'` aren't merged).
+    const typeKey = imp.typeOnly ? (imp.defaultImport ? "type-default" : "type-named") : "value";
+    const key = `${imp.source}::${typeKey}`;
     const current = map.get(key);
     if (!current) {
       map.set(key, {
@@ -36,10 +40,7 @@ export function mergeImports(existing: ImportInfo[], additional: ImportInfo[]): 
         }
       }
 
-      // If either import is not type-only, the merged result is not type-only
-      if (!imp.typeOnly) {
-        current.typeOnly = false;
-      }
+      // Both imports have same typeOnly (due to composite key), no need to update
     }
   }
 

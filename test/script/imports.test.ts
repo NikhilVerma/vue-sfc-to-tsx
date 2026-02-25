@@ -55,7 +55,7 @@ describe("mergeImports", () => {
     expect(result).toHaveLength(2);
   });
 
-  test("marks merged import as non-type-only if either is non-type-only", () => {
+  test("keeps type-only and non-type-only from same source separate", () => {
     const existing: ImportInfo[] = [
       { source: "./types", namedImports: [{ imported: "Foo", local: "Foo" }], typeOnly: true },
     ];
@@ -65,8 +65,11 @@ describe("mergeImports", () => {
 
     const result = mergeImports(existing, additional);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].typeOnly).toBe(false);
+    expect(result).toHaveLength(2);
+    const typeOnly = result.find((r) => r.typeOnly);
+    const nonTypeOnly = result.find((r) => !r.typeOnly);
+    expect(typeOnly!.namedImports).toContainEqual({ imported: "Foo", local: "Foo" });
+    expect(nonTypeOnly!.namedImports).toContainEqual({ imported: "bar", local: "bar" });
   });
 
   test("merges default imports", () => {
@@ -158,6 +161,121 @@ describe("generateImportStatements", () => {
     expect(lines[0]).toContain("from 'vue'");
     expect(lines[1]).toContain("from 'axios'");
     expect(lines[2]).toContain("from 'lodash'");
+  });
+});
+
+describe("mergeImports keeps two type-only imports from same source separate when one has default", () => {
+  test("import type Default + import type { Named } stay separate", () => {
+    const existing: ImportInfo[] = [
+      {
+        source: "~/components/shared/Foo.vue",
+        defaultImport: "Foo",
+        namedImports: [],
+        typeOnly: true,
+      },
+    ];
+    const additional: ImportInfo[] = [
+      {
+        source: "~/components/shared/Foo.vue",
+        namedImports: [{ imported: "FooBar", local: "FooBar" }],
+        typeOnly: true,
+      },
+    ];
+
+    const result = mergeImports(existing, additional);
+
+    expect(result).toHaveLength(2);
+    const withDefault = result.find((r) => r.defaultImport === "Foo");
+    expect(withDefault).toBeDefined();
+    expect(withDefault!.namedImports).toHaveLength(0);
+    const withNamed = result.find((r) => r.namedImports.some((n) => n.imported === "FooBar"));
+    expect(withNamed).toBeDefined();
+    expect(withNamed!.defaultImport).toBeUndefined();
+  });
+
+  test("two named type-only imports from same source still merge", () => {
+    const existing: ImportInfo[] = [
+      {
+        source: "~/types",
+        namedImports: [{ imported: "Foo", local: "Foo" }],
+        typeOnly: true,
+      },
+    ];
+    const additional: ImportInfo[] = [
+      {
+        source: "~/types",
+        namedImports: [{ imported: "Bar", local: "Bar" }],
+        typeOnly: true,
+      },
+    ];
+
+    const result = mergeImports(existing, additional);
+    expect(result).toHaveLength(1);
+    expect(result[0].namedImports).toHaveLength(2);
+  });
+});
+
+describe("mergeImports type-only separation", () => {
+  test("keeps type-only and non-type-only imports from same source separate", () => {
+    const existing: ImportInfo[] = [
+      {
+        source: "./types",
+        defaultImport: "Foo",
+        namedImports: [],
+        typeOnly: false,
+      },
+    ];
+    const additional: ImportInfo[] = [
+      {
+        source: "./types",
+        namedImports: [{ imported: "Bar", local: "Bar" }],
+        typeOnly: true,
+      },
+    ];
+
+    const result = mergeImports(existing, additional);
+
+    // Should produce two separate imports, not merge them
+    expect(result).toHaveLength(2);
+    // One with default import (non-type-only)
+    const nonType = result.find((r) => !r.typeOnly);
+    expect(nonType).toBeDefined();
+    expect(nonType!.defaultImport).toBe("Foo");
+    // One with named type import
+    const typeOnly = result.find((r) => r.typeOnly);
+    expect(typeOnly).toBeDefined();
+    expect(typeOnly!.namedImports).toContainEqual({ imported: "Bar", local: "Bar" });
+  });
+
+  test("still merges two non-type-only imports from same source", () => {
+    const existing: ImportInfo[] = [
+      { source: "vue", namedImports: [{ imported: "ref", local: "ref" }], typeOnly: false },
+    ];
+    const additional: ImportInfo[] = [
+      {
+        source: "vue",
+        namedImports: [{ imported: "computed", local: "computed" }],
+        typeOnly: false,
+      },
+    ];
+
+    const result = mergeImports(existing, additional);
+    expect(result).toHaveLength(1);
+    expect(result[0].namedImports).toHaveLength(2);
+  });
+
+  test("still merges two type-only imports from same source", () => {
+    const existing: ImportInfo[] = [
+      { source: "./types", namedImports: [{ imported: "Foo", local: "Foo" }], typeOnly: true },
+    ];
+    const additional: ImportInfo[] = [
+      { source: "./types", namedImports: [{ imported: "Bar", local: "Bar" }], typeOnly: true },
+    ];
+
+    const result = mergeImports(existing, additional);
+    expect(result).toHaveLength(1);
+    expect(result[0].namedImports).toHaveLength(2);
+    expect(result[0].typeOnly).toBe(true);
   });
 });
 

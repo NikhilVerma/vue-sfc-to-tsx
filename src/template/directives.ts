@@ -38,7 +38,7 @@ export function processDirective(
         const modList = modifiers.map((m) => `'${m}'`).join(", ");
         return {
           attr: `v-model${argSuffix}`,
-          value: `{[${exp}, [${modList}]]}`,
+          value: `[${exp}, [${modList}]]`,
         };
       }
       return { attr: `v-model${argSuffix}`, value: exp ?? "undefined" };

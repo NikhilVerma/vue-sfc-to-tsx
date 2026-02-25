@@ -172,6 +172,11 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
   return wrapShow ? wrapVShow(jsx, wrapShow) : jsx;
 }
 
+/** Check if an expression is a simple identifier or member access (valid as JSX tag) */
+function isSimpleTagExpression(expr: string): boolean {
+  return /^[a-zA-Z_$][\w$.]*$/.test(expr);
+}
+
 function renderDynamicComponent(node: ElementNode, ctx: JsxContext): string {
   let componentExpr = "undefined";
   for (const prop of node.props) {
@@ -189,6 +194,20 @@ function renderDynamicComponent(node: ElementNode, ctx: JsxContext): string {
       return true;
     }),
   } as ElementNode;
+
+  // Complex expressions (function calls, ternaries, etc.) can't be used as JSX tag names.
+  // Add a fallback for these cases.
+  if (!isSimpleTagExpression(componentExpr)) {
+    const source = `<component :is="${componentExpr}" />`;
+    ctx.fallbacks.push({
+      source,
+      reason: `Dynamic component :is with complex expression cannot be used as JSX tag name`,
+      line: node.loc?.start.line,
+      column: node.loc?.start.column,
+    });
+    const comment = `{/* TODO: vue-to-tsx - Dynamic component :is="${componentExpr}" — assign to a variable first */}`;
+    return comment;
+  }
 
   const { attrStr } = processAllProps(filteredNode, ctx);
   const children = walkChildren(node.children, ctx);
@@ -237,6 +256,17 @@ function processAllProps(node: ElementNode, ctx: JsxContext): ProcessedProps {
 
     const result = processDirective(dir, node, ctx);
     if (result.omit) continue;
+    if (result.fallback) {
+      // Fallback was registered in ctx.fallbacks by processDirective
+      // Insert a TODO comment as an attribute so the LLM can find and replace it
+      const lastFallback = ctx.fallbacks[ctx.fallbacks.length - 1];
+      if (lastFallback) {
+        extraAttrs.push(
+          `/* TODO: vue-to-tsx - ${lastFallback.reason} | Original: ${lastFallback.source} */`,
+        );
+      }
+      continue;
+    }
     if (result.attr && result.value) {
       extraAttrs.push(`${result.attr}={${result.value}}`);
     }

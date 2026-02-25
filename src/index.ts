@@ -124,12 +124,13 @@ export async function convert(source: string, options?: ConvertOptions): Promise
       sourceVue: source,
       generatedTsx: tsx,
     });
-    for (const [originalSource, replacement] of replacements) {
-      const comment = generateFallbackComment({
-        source: originalSource,
-        reason: "",
-      });
-      tsx = tsx.replace(comment, replacement);
+    for (const fallback of ctx.fallbacks) {
+      const replacement = replacements.get(fallback.source);
+      if (replacement) {
+        // Replace the TODO comment that was inserted into the TSX
+        const comment = generateFallbackComment(fallback);
+        tsx = tsx.replace(comment, replacement);
+      }
     }
   }
 

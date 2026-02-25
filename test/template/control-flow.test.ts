@@ -167,6 +167,20 @@ describe("processVFor", () => {
     expect(result).toBe("{_renderList(obj, (value, key, index) => (<div />))}");
   });
 
+  test("v-for with multiline expression", () => {
+    // Simulate what Vue parser returns for a multiline v-for attribute
+    const children = getChildren(
+      `<div v-for="leftSideDocument of getAuditLeftSideDocuments(\n    audit\n)">{{ leftSideDocument }}</div>`,
+    );
+    const node = children.find((c) => c.type === 1) as ElementNode;
+
+    const result = processVFor(node, makeCtx(), renderElement);
+    // Must parse correctly: iterator = leftSideDocument, iterable = getAuditLeftSideDocuments(audit)
+    expect(result).toContain("_renderList(getAuditLeftSideDocuments(");
+    expect(result).not.toContain(" of ");
+    expect(result).toContain("(leftSideDocument) =>");
+  });
+
   test("v-for sets hasVFor on context", () => {
     const children = getChildren(`<div v-for="item in items">{{ item }}</div>`);
     const node = children.find((c) => c.type === 1) as ElementNode;

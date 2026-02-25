@@ -133,8 +133,16 @@ describe("directives in walker", () => {
 });
 
 describe("dynamic component", () => {
-  test('<component :is="x">', () => {
+  test('<component :is="x"> with simple identifier', () => {
     expect(toJsx('<component :is="currentView" />')).toBe("<currentView />");
+  });
+
+  test('<component :is="x"> with complex expression adds fallback', () => {
+    const ctx = makeCtx();
+    const result = toJsx('<component :is="getComponent(type)" />', ctx);
+    // Complex expression can't be used as JSX tag directly, should produce fallback
+    expect(ctx.fallbacks.length).toBeGreaterThan(0);
+    expect(ctx.fallbacks[0].reason).toContain("component :is");
   });
 });
 
@@ -200,6 +208,39 @@ describe("props in object shorthand", () => {
       propIdentifiers: new Set(["variant"]),
     });
     expect(result).toContain("{ active: props.variant }");
+  });
+});
+
+describe("v-model with modifiers", () => {
+  test("v-model.number produces correct JSX syntax", () => {
+    const result = toJsx('<input v-model.number="count" />');
+    // Should be v-model={[count, ['number']]} NOT v-model={{[count, ['number']]}}
+    expect(result).toContain("v-model={[count, ['number']]}");
+    expect(result).not.toContain("v-model={{");
+  });
+
+  test("v-model.trim produces correct JSX syntax", () => {
+    const result = toJsx('<input v-model.trim="name" />');
+    expect(result).toContain("v-model={[name, ['trim']]}");
+  });
+
+  test("v-model with multiple modifiers", () => {
+    const result = toJsx('<input v-model.number.lazy="count" />');
+    expect(result).toContain("v-model={[count, ['number', 'lazy']]}");
+  });
+});
+
+describe(".prop modifier on static attribute", () => {
+  test("show-scrollbar.prop is stripped of .prop suffix", () => {
+    const result = toJsx('<FDiv show-scrollbar.prop="true">content</FDiv>');
+    expect(result).toContain("show-scrollbar");
+    expect(result).not.toContain(".prop");
+  });
+
+  test(":textContent.prop is treated as normal binding", () => {
+    const result = toJsx('<div :textContent.prop="text">text</div>');
+    expect(result).toContain("textContent={text}");
+    expect(result).not.toContain(".prop");
   });
 });
 
