@@ -77,6 +77,33 @@ describe("slot content on components", () => {
     expect(result).toContain("'child-node-template':");
   });
 
+  test("scoped slot with multiple elements wraps in fragment", () => {
+    const result = toJsx(`
+      <form.Field name="x">
+        <template #default="{ field }">
+          <Textarea :model-value="field.state.value" @blur="field.handleBlur" />
+          <FieldError v-if="isInvalid(field)" :errors="field.state.meta.errors" />
+        </template>
+      </form.Field>
+    `);
+    expect(result).toContain("<>");
+    expect(result).toContain("</>");
+  });
+
+  test("scoped slot with arrow function in attribute wraps in fragment", () => {
+    // Regression: => in onInput attribute contains > which fools needsFragmentWrap
+    const result = toJsx(`
+      <form.Field name="x">
+        <template #default="{ field }">
+          <Textarea :model-value="field.state.value" @input="($event) => field.handleChange($event.target.value)" />
+          <FieldError v-if="isInvalid(field)" :errors="field.state.meta.errors" />
+        </template>
+      </form.Field>
+    `);
+    expect(result).toContain("<>");
+    expect(result).toContain("</>");
+  });
+
   test("component with named slot templates", () => {
     const result = toJsx(`
       <MyComp>

@@ -1,6 +1,6 @@
 {
   "name": "vue-to-tsx",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Convert Vue Single File Components (.vue) to Vue TSX (.tsx + .css)",
   "type": "module",
   "license": "MIT",

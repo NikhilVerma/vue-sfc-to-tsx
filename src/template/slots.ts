@@ -150,8 +150,11 @@ export function processSlotContent(
 
 /**
  * Check if slot content needs to be wrapped in a fragment.
- * Wraps when: content has multiple root JSX elements, contains newlines,
+ * Wraps when: content has multiple root JSX elements/expressions, contains newlines,
  * or is non-JSX text.
+ *
+ * Uses a character-level scanner that properly skips JSX expression content `{...}`
+ * so that `>` characters inside arrow functions or comparisons don't fool the detector.
  */
 function needsFragmentWrap(content: string): boolean {
   const trimmed = content.trim();
@@ -159,29 +162,91 @@ function needsFragmentWrap(content: string): boolean {
   if (!trimmed.startsWith("<")) return true;
   // Contains newlines — wrap for safety
   if (content.includes("\n")) return true;
-  // Check for multiple root elements: after the first self-closing or paired tag,
-  // there shouldn't be another `<` that starts a new element
-  // Simple heuristic: count top-level `<Tag` occurrences
-  let depth = 0;
-  let roots = 0;
-  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*|>)/g;
-  let m: RegExpExecArray | null;
-  while ((m = tagRe.exec(trimmed)) !== null) {
-    const isClose = trimmed[m.index + 1] === "/";
-    if (isClose) {
-      depth--;
-    } else {
-      if (depth === 0) roots++;
-      // Check if self-closing
-      const endIdx = trimmed.indexOf(">", m.index);
-      if (endIdx > 0 && trimmed[endIdx - 1] === "/") {
-        // Self-closing, don't increment depth
-      } else if (!isClose) {
-        depth++;
+
+  // Walk through tracking element depth and brace depth.
+  // Return true as soon as we confirm there are multiple root-level nodes.
+  let i = 0;
+  let elemDepth = 0;
+  let rootCount = 0;
+
+  while (i < trimmed.length) {
+    const c = trimmed[i];
+
+    if (c === "{") {
+      // Root-level JSX expression { ... }
+      if (elemDepth === 0) {
+        rootCount++;
+        if (rootCount > 1) return true;
       }
+      // Skip entire brace group (handles nested braces too)
+      let braceDepth = 1;
+      i++;
+      while (i < trimmed.length && braceDepth > 0) {
+        if (trimmed[i] === "{") braceDepth++;
+        else if (trimmed[i] === "}") braceDepth--;
+        i++;
+      }
+      continue;
     }
-    if (roots > 1) return true;
+
+    if (c === "<") {
+      const nextCh = trimmed[i + 1];
+
+      if (nextCh === "/") {
+        // Closing tag </tag> — find matching >
+        elemDepth--;
+        const closeEnd = trimmed.indexOf(">", i + 2);
+        i = closeEnd >= 0 ? closeEnd + 1 : trimmed.length;
+        if (elemDepth === 0) {
+          // Root element closed — anything after?
+          return trimmed.slice(i).trim().length > 0;
+        }
+        continue;
+      }
+
+      // Opening tag <Tag ...>
+      if (elemDepth === 0) {
+        rootCount++;
+        if (rootCount > 1) return true;
+      }
+      elemDepth++;
+      i++;
+
+      // Scan attributes until > or />, skipping JSX expression values { ... }
+      while (i < trimmed.length) {
+        const tc = trimmed[i];
+        if (tc === "{") {
+          // Skip JSX expression in attribute value
+          let bd = 1;
+          i++;
+          while (i < trimmed.length && bd > 0) {
+            if (trimmed[i] === "{") bd++;
+            else if (trimmed[i] === "}") bd--;
+            i++;
+          }
+          continue;
+        }
+        if (tc === "/" && trimmed[i + 1] === ">") {
+          // Self-closing tag
+          elemDepth--;
+          i += 2;
+          if (elemDepth === 0) {
+            return trimmed.slice(i).trim().length > 0;
+          }
+          break;
+        }
+        if (tc === ">") {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+
+    i++;
   }
+
   return false;
 }
 
