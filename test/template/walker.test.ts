@@ -19,9 +19,20 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
   };
 }
 
-function toJsx(template: string, classMap?: Map<string, string>): string {
+function toJsx(
+  template: string,
+  classMapOrCtx?: Map<string, string> | Partial<JsxContext>,
+): string {
   const sfc = parseSFC(`<template>${template}</template>`);
-  return templateToJsx(sfc.templateAst!, makeCtx(classMap));
+  let ctx: JsxContext;
+  if (classMapOrCtx instanceof Map) {
+    ctx = makeCtx(classMapOrCtx);
+  } else if (classMapOrCtx) {
+    ctx = { ...makeCtx(), ...classMapOrCtx };
+  } else {
+    ctx = makeCtx();
+  }
+  return templateToJsx(sfc.templateAst!, ctx);
 }
 
 describe("walkChildren", () => {
@@ -136,6 +147,33 @@ describe("template fragments", () => {
     expect(inner).toBeDefined();
     const result = walkChildren([inner!], makeCtx());
     expect(result).toBe("<><div>a</div><div>b</div></>");
+  });
+});
+
+describe("props prefixing", () => {
+  test("prop in object shorthand expands to key-value pair", () => {
+    const result = toJsx('<div :class="fn({ variant })">text</div>', {
+      propIdentifiers: new Set(["variant"]),
+    });
+    expect(result).toContain("{ variant: props.variant }");
+  });
+
+  test("prop in object shorthand with other keys", () => {
+    const result = toJsx('<div :class="fn({ variant, size })">text</div>', {
+      propIdentifiers: new Set(["variant"]),
+    });
+    expect(result).toContain("variant: props.variant");
+    // size is not a prop, should stay as shorthand
+    expect(result).toContain("size");
+  });
+});
+
+describe("ref .value in object shorthand", () => {
+  test("ref in object shorthand expands to key-value pair", () => {
+    const result = toJsx('<div :data="fn({ count })">text</div>', {
+      refIdentifiers: new Set(["count"]),
+    });
+    expect(result).toContain("{ count: count.value }");
   });
 });
 

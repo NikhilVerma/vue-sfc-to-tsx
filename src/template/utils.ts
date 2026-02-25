@@ -190,6 +190,23 @@ function appendRefValue(expr: string, refs: Set<string>): string {
           return match;
         }
       }
+      // Check if in object shorthand position: `{ count }` or `{ count, ... }`
+      // In this case, expand to `count: count.value`
+      const beforeStr = result.slice(0, offset);
+      let bd = 0;
+      for (let i = 0; i < beforeStr.length; i++) {
+        if (beforeStr[i] === "{") bd++;
+        else if (beforeStr[i] === "}") bd--;
+      }
+      if (bd > 0) {
+        const afterStr = result.slice(offset + match.length);
+        const afterMatch = afterStr.match(/^\s*(.)/);
+        const nextCh = afterMatch ? afterMatch[1] : "";
+        if (nextCh === "," || nextCh === "}") {
+          return `${name}: ${name}.value`;
+        }
+      }
+
       return `${name}.value`;
     });
   }
@@ -225,6 +242,23 @@ function prefixProps(expr: string, propNames: Set<string>): string {
           else if (beforeStr[i] === "}") braceDepth--;
         }
         if (braceDepth > 0) return match;
+      }
+
+      // Check if in object shorthand position: `{ variant }` or `{ variant, ... }`
+      // In this case, expand to `variant: props.variant`
+      const beforeStr = result.slice(0, offset);
+      let braceDepth = 0;
+      for (let i = 0; i < beforeStr.length; i++) {
+        if (beforeStr[i] === "{") braceDepth++;
+        else if (beforeStr[i] === "}") braceDepth--;
+      }
+      if (braceDepth > 0) {
+        // Inside braces — check if followed by `,` or `}` (shorthand position)
+        const afterTrimmed = after.match(/^\s*(.)/);
+        const nextChar = afterTrimmed ? afterTrimmed[1] : "";
+        if (nextChar === "," || nextChar === "}") {
+          return `${name}: props.${name}`;
+        }
       }
 
       return `props.${name}`;
