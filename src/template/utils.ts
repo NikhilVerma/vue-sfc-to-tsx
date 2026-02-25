@@ -127,7 +127,7 @@ function isInsideString(expr: string, offset: number): boolean {
     const next = expr[i + 1];
 
     // Skip escaped characters inside any string
-    if (ch === '\\' && (inSingle || inDouble || inTemplate)) {
+    if (ch === "\\" && (inSingle || inDouble || inTemplate)) {
       i++;
       continue;
     }
@@ -135,20 +135,20 @@ function isInsideString(expr: string, offset: number): boolean {
     if (!inSingle && !inDouble && !inTemplate) {
       if (ch === "'") inSingle = true;
       else if (ch === '"') inDouble = true;
-      else if (ch === '`') inTemplate = true;
+      else if (ch === "`") inTemplate = true;
     } else if (inSingle && ch === "'") {
       inSingle = false;
     } else if (inDouble && ch === '"') {
       inDouble = false;
     } else if (inTemplate) {
-      if (ch === '`' && interpDepth === 0) {
+      if (ch === "`" && interpDepth === 0) {
         inTemplate = false;
-      } else if (ch === '$' && next === '{' && interpDepth === 0) {
+      } else if (ch === "$" && next === "{" && interpDepth === 0) {
         interpDepth++;
         i++; // skip the {
-      } else if (ch === '{' && interpDepth > 0) {
+      } else if (ch === "{" && interpDepth > 0) {
         interpDepth++;
-      } else if (ch === '}' && interpDepth > 0) {
+      } else if (ch === "}" && interpDepth > 0) {
         interpDepth--;
       }
     }
@@ -254,11 +254,11 @@ export function indent(str: string, level: number): string {
 
 /** Vue built-in components that need to be imported in JSX/TSX */
 export const VUE_BUILTINS = new Set([
-  'Teleport',
-  'KeepAlive',
-  'Suspense',
-  'Transition',
-  'TransitionGroup',
+  "Teleport",
+  "KeepAlive",
+  "Suspense",
+  "Transition",
+  "TransitionGroup",
 ]);
 
 /** Check if a tag name represents a Vue component (not a plain HTML element) */

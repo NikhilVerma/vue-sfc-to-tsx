@@ -35,7 +35,11 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
       // DirectiveNode
       const directive = prop as DirectiveNode;
       // Collect dynamic :class separately for merging with static class
-      if (directive.name === "bind" && directive.arg && (directive.arg as any).content === "class") {
+      if (
+        directive.name === "bind" &&
+        directive.arg &&
+        (directive.arg as any).content === "class"
+      ) {
         dynamicClass = unwrapExpression(directive.exp, ctx);
         continue;
       }
@@ -71,12 +75,16 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
   return { attrs, spreads };
 }
 
-function generateMergedClassWithMap(staticValue: string, dynamicExpr: string, ctx: JsxContext): string {
+function generateMergedClassWithMap(
+  staticValue: string,
+  dynamicExpr: string,
+  ctx: JsxContext,
+): string {
   const staticPart = generateStaticClassAttribute(staticValue, ctx);
   const dynamicPart = generateDynamicClass(dynamicExpr, ctx);
   // Extract the expressions from class=X format
-  const staticExpr = staticPart.replace(/^class=/, '');
-  const dynamicExprClean = dynamicPart.replace(/^class=/, '');
+  const staticExpr = staticPart.replace(/^class=/, "");
+  const dynamicExprClean = dynamicPart.replace(/^class=/, "");
   return `class={[${staticExpr}, ${dynamicExprClean}]}`;
 }
 
@@ -285,7 +293,39 @@ function generateOnDirective(
   }
 
   // If it looks like a function call: @click="doSomething($event)"
-  return { type: "attr", value: `${jsxName}={($event) => ${expr}}` };
+  const body = isMultiStatement(expr) ? wrapInBlock(expr) : expr;
+  return { type: "attr", value: `${jsxName}={($event) => ${body}}` };
+}
+
+/** Check if an expression contains multiple statements (semicolons outside strings) */
+function isMultiStatement(expr: string): boolean {
+  if (!expr.includes(";")) return false;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === "\\" && (inSingle || inDouble || inTemplate)) {
+      i++;
+      continue;
+    }
+    if (!inSingle && !inDouble && !inTemplate) {
+      if (ch === "'") inSingle = true;
+      else if (ch === '"') inDouble = true;
+      else if (ch === "`") inTemplate = true;
+      else if (ch === ";") return true;
+    } else if (inSingle && ch === "'") inSingle = false;
+    else if (inDouble && ch === '"') inDouble = false;
+    else if (inTemplate && ch === "`") inTemplate = false;
+  }
+  return false;
+}
+
+/** Wrap an expression in a block body if it contains multiple statements */
+function wrapInBlock(expr: string): string {
+  if (!isMultiStatement(expr)) return expr;
+  const trimmed = expr.trim().replace(/;$/, "");
+  return `{ ${trimmed}; }`;
 }
 
 /** Check if an expression is a simple identifier or member access (no function call or complex expression) */

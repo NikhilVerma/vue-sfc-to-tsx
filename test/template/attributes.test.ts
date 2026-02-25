@@ -87,9 +87,9 @@ describe("generateAttributes", () => {
     });
 
     test("multiple hyphenated prop names", () => {
-      expect(
-        attrsFor('<Lineage :children-node-size="{ width: 200 }" :gap="100"></Lineage>'),
-      ).toBe(" children-node-size={{ width: 200 }} gap={100}");
+      expect(attrsFor('<Lineage :children-node-size="{ width: 200 }" :gap="100"></Lineage>')).toBe(
+        " children-node-size={{ width: 200 }} gap={100}",
+      );
     });
 
     test('v-bind="obj" spread', () => {
@@ -123,6 +123,12 @@ describe("generateAttributes", () => {
 
     test('@input="onInput"', () => {
       expect(attrsFor('<input @input="onInput" />')).toBe(" onInput={onInput}");
+    });
+
+    test("multi-statement handler wraps in block body", () => {
+      expect(attrsFor(`<Comp @view-logs="emit('viewLogs', vm.id); closeDropdown();"></Comp>`)).toBe(
+        ` onViewLogs={($event) => { emit('viewLogs', vm.id); closeDropdown(); }}`,
+      );
     });
 
     test('@custom-event="handler"', () => {

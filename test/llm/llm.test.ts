@@ -58,7 +58,7 @@ describe("buildPrompt", () => {
       { source: "<input v-focus />", reason: "Custom directive v-focus" },
     ];
     const sourceVue = '<template><input v-focus /></template>\n<script setup lang="ts"></script>';
-    const generatedTsx = 'export default defineComponent({ setup() { return () => <input />; } })';
+    const generatedTsx = "export default defineComponent({ setup() { return () => <input />; } })";
     const prompt = buildPrompt(fallbacks, "MyForm", sourceVue, generatedTsx);
 
     expect(prompt).toContain("## Original Vue SFC");
@@ -97,7 +97,7 @@ describe("validateReplacement", () => {
     expect(validateReplacement('<div v-show="visible" />')).toBe(false);
     expect(validateReplacement('<button @click="handler">ok</button>')).toBe(false);
     expect(validateReplacement('<div v-html="content" />')).toBe(false);
-    expect(validateReplacement('<slot v-slot:header />')).toBe(false);
+    expect(validateReplacement("<slot v-slot:header />")).toBe(false);
   });
 });
 

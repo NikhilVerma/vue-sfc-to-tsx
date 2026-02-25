@@ -142,15 +142,15 @@ function parseEmitTypes(typeStr: string): string[] {
 
   // Shorthand property form: { foo: [...]; "bar-baz": [...] }
   // Must only match top-level properties (depth 0), not nested object properties
-  const body = typeStr.replace(/^\s*\{/, '').replace(/\}\s*$/, '');
+  const body = typeStr.replace(/^\s*\{/, "").replace(/\}\s*$/, "");
   let depth = 0;
   let i = 0;
   while (i < body.length) {
     const ch = body[i];
-    if (ch === '{' || ch === '[' || ch === '(') {
+    if (ch === "{" || ch === "[" || ch === "(") {
       depth++;
       i++;
-    } else if (ch === '}' || ch === ']' || ch === ')') {
+    } else if (ch === "}" || ch === "]" || ch === ")") {
       depth--;
       i++;
     } else if (depth === 0) {
@@ -266,11 +266,14 @@ function fromScriptSetup(
 
   // Detect auto-imported APIs (e.g., ref, computed used without explicit import)
   // Include runtime props/emits strings since they may reference PropType etc.
-  const extraScanSources = [
-    macros.props?.runtime ?? '',
-    macros.emits?.runtime ?? '',
-  ].filter(Boolean).join('\n');
-  const autoImported = detectAutoImports(macros.body + '\n' + extraScanSources, jsxBody, macros.imports);
+  const extraScanSources = [macros.props?.runtime ?? "", macros.emits?.runtime ?? ""]
+    .filter(Boolean)
+    .join("\n");
+  const autoImported = detectAutoImports(
+    macros.body + "\n" + extraScanSources,
+    jsxBody,
+    macros.imports,
+  );
 
   // Build imports
   const allImports = [...macros.imports, ...autoImported];
@@ -397,7 +400,7 @@ function fromScriptSetup(
 
   // Hoist side-effect imports after structured imports
   if (macros.rawImports.length > 0) {
-    lines.push(macros.rawImports.map(s => s.replace(/\.vue(['"])/g, '$1')).join("\n"));
+    lines.push(macros.rawImports.map((s) => s.replace(/\.vue(['"])/g, "$1")).join("\n"));
   }
 
   if (lines.length > 0) {

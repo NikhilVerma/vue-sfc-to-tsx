@@ -116,7 +116,8 @@ Respond with a JSON array of strings, one per item. Example: ["<div className={s
 }
 
 /** Vue template syntax patterns that should never appear in JSX output */
-const VUE_TEMPLATE_PATTERNS = /\b(v-if|v-else-if|v-else|v-for|v-model|v-show|v-bind|v-on|v-slot|v-html|v-text)\b|@\w+=/;
+const VUE_TEMPLATE_PATTERNS =
+  /\b(v-if|v-else-if|v-else|v-for|v-model|v-show|v-bind|v-on|v-slot|v-html|v-text)\b|@\w+=/;
 
 /**
  * Validate that a replacement looks like valid JSX, not Vue template syntax.

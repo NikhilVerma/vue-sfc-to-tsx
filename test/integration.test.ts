@@ -309,7 +309,9 @@ const emit = defineEmits<{
     const result = await convert(input, { componentName: "EmitKebab" });
 
     // Should only extract top-level event names, not nested object properties
-    expect(result.tsx).toContain("emits: ['selectStatement', 'select-node', 'mitigate', 'starmap-sector-clicked']");
+    expect(result.tsx).toContain(
+      "emits: ['selectStatement', 'select-node', 'mitigate', 'starmap-sector-clicked']",
+    );
     // Should NOT contain nested property names as events
     expect(result.tsx).not.toContain("'selectedStatement'");
     expect(result.tsx).not.toContain("'starmapId'");

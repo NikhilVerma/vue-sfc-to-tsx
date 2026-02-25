@@ -46,6 +46,42 @@ function isFunctionExpression(expr: string): boolean {
   return false;
 }
 
+/**
+ * Check if an expression contains multiple statements (has semicolons outside strings).
+ * Multi-statement expressions need to be wrapped in a block body `{ ... }`.
+ */
+function isMultiStatement(expr: string): boolean {
+  // Quick check — if no semicolons, definitely not multi-statement
+  if (!expr.includes(";")) return false;
+  // Check for semicolons outside of string literals
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === "\\" && (inSingle || inDouble || inTemplate)) {
+      i++;
+      continue;
+    }
+    if (!inSingle && !inDouble && !inTemplate) {
+      if (ch === "'") inSingle = true;
+      else if (ch === '"') inDouble = true;
+      else if (ch === "`") inTemplate = true;
+      else if (ch === ";") return true;
+    } else if (inSingle && ch === "'") inSingle = false;
+    else if (inDouble && ch === '"') inDouble = false;
+    else if (inTemplate && ch === "`") inTemplate = false;
+  }
+  return false;
+}
+
+/** Wrap an expression in a block body if it contains multiple statements */
+function wrapInBlock(expr: string): string {
+  if (!isMultiStatement(expr)) return expr;
+  const trimmed = expr.trim().replace(/;$/, "");
+  return `{ ${trimmed}; }`;
+}
+
 /** Modifiers that are handled by the Vue JSX runtime natively (not withModifiers) */
 const NATIVE_MODIFIERS = new Set(["capture", "once", "passive"]);
 
@@ -78,7 +114,7 @@ export function processEvent(dir: DirectiveNode, ctx: JsxContext): { name: strin
     value = handler;
   } else {
     // Inline expression needs arrow wrapper
-    value = `() => ${handler}`;
+    value = `() => ${wrapInBlock(handler)}`;
   }
 
   // Apply withModifiers if there are non-native modifiers
@@ -87,7 +123,7 @@ export function processEvent(dir: DirectiveNode, ctx: JsxContext): { name: strin
     if (isSimpleHandler(handler) || isFunctionExpression(handler)) {
       value = `withModifiers(${value}, [${modList}])`;
     } else {
-      value = `withModifiers(() => ${handler}, [${modList}])`;
+      value = `withModifiers(() => ${wrapInBlock(handler)}, [${modList}])`;
     }
   }
 

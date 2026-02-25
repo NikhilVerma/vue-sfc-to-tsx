@@ -105,7 +105,7 @@ export async function convert(source: string, options?: ConvertOptions): Promise
   if (ctx.usedBuiltins.size > 0) {
     for (const builtin of ctx.usedBuiltins) {
       additionalImports.push({
-        source: 'vue',
+        source: "vue",
         namedImports: [{ imported: builtin, local: builtin }],
         typeOnly: false,
       });

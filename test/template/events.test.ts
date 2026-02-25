@@ -121,6 +121,28 @@ describe("processEvent", () => {
     expect(result.value).toBe("handler");
   });
 
+  // --- Multi-statement handlers need block body ---
+
+  test("multi-statement handler gets wrapped in block body", () => {
+    const dir = getEventDirective(
+      `<button @click="emit('viewLogs', vm.id); closeDropdown();">click</button>`,
+    );
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe("onClick");
+    expect(result.value).toBe("() => { emit('viewLogs', vm.id); closeDropdown(); }");
+  });
+
+  test("multi-statement handler with modifier gets block body", () => {
+    const dir = getEventDirective(
+      `<button @click.prevent="emit('viewLogs', vm.id); closeDropdown();">click</button>`,
+    );
+    const result = processEvent(dir, makeCtx());
+    expect(result.name).toBe("onClick");
+    expect(result.value).toBe(
+      "withModifiers(() => { emit('viewLogs', vm.id); closeDropdown(); }, ['prevent'])",
+    );
+  });
+
   // --- Arrow function / function expression handlers should NOT be double-wrapped ---
 
   test("arrow function handler is not double-wrapped", () => {

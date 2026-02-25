@@ -62,7 +62,7 @@ export function generateImportStatements(imports: ImportInfo[]): string {
   for (const imp of sorted) {
     const typePrefix = imp.typeOnly ? "type " : "";
     // Strip .vue extension from import paths (TSX files don't import .vue)
-    const source = imp.source.replace(/\.vue$/, '');
+    const source = imp.source.replace(/\.vue$/, "");
 
     if (imp.namespaceImport) {
       lines.push(`import ${typePrefix}* as ${imp.namespaceImport} from '${source}'`);

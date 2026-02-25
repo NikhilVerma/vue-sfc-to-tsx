@@ -62,7 +62,9 @@ export function processSlot(
   const propsArg = slotProps.length > 0 ? `{ ${slotProps.join(", ")} }` : "";
   const needsBracket = isDynamicName || !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(slotName);
   const slotAccess = needsBracket
-    ? (isDynamicName ? `slots[${slotName}]` : `slots['${slotName}']`)
+    ? isDynamicName
+      ? `slots[${slotName}]`
+      : `slots['${slotName}']`
     : `slots.${slotName}`;
 
   const call = `${slotAccess}?.(${propsArg})`;
