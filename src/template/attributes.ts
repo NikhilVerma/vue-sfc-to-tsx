@@ -107,6 +107,10 @@ function generateStaticAttribute(prop: AttributeNode, ctx: JsxContext): string |
     return name;
   }
 
+  // If value contains double quotes, use expression syntax with single quotes
+  if (value.includes('"')) {
+    return `${name}={'${value.replace(/'/g, "\\'")}'}`;
+  }
   return `${name}="${value}"`;
 }
 

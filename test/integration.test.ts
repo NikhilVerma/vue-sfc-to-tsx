@@ -1247,6 +1247,91 @@ const hasLoaded = ref(false)
   });
 });
 
+describe("R2 pattern 1: template literal inside object value", () => {
+  test("ref in template literal inside object is not shorthand-expanded", async () => {
+    const input = `<template>
+  <div :style="{ height: \`\${totalSize}px\` }">text</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const totalSize = ref(100)
+</script>`;
+    const result = await convert(input, { componentName: "TplInObj" });
+
+    expect(result.tsx).toContain("`${totalSize.value}px`");
+    expect(result.tsx).not.toContain("totalSize: totalSize.value");
+  });
+});
+
+describe("R2 pattern 3: slot call not double-wrapped in braces", () => {
+  test("slot in v-if ternary has no extra braces", async () => {
+    const input = `<template>
+  <slot v-if="hasLoaded" />
+  <FDiv v-else>fallback</FDiv>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const hasLoaded = ref(false)
+</script>`;
+    const result = await convert(input, { componentName: "SlotBraces" });
+
+    // Should NOT have {slots.default?.()} with extra braces in ternary
+    expect(result.tsx).not.toContain("{slots.default?.()}");
+    expect(result.tsx).toContain("slots.default?.()");
+    expect(result.tsx).toContain("hasLoaded.value ?");
+  });
+});
+
+describe("R2 pattern 5: v-for 'of' keyword", () => {
+  test("v-for with 'of' on template element", async () => {
+    const input = `<template>
+  <template v-for="doc of getDocs()" :key="doc.id">
+    <div>{{ doc.name }}</div>
+  </template>
+</template>
+<script setup lang="ts">
+function getDocs() { return [] }
+</script>`;
+    const result = await convert(input, { componentName: "VForOf" });
+
+    expect(result.tsx).toContain("_renderList(getDocs()");
+    expect(result.tsx).toContain("(doc)");
+    expect(result.tsx).not.toContain("doc of getDocs");
+  });
+});
+
+describe("R2 pattern 10: unescaped double quotes in JSX attribute", () => {
+  test("attribute value with double quotes uses expression syntax", async () => {
+    const input = `<template>
+  <Textarea placeholder='[{"type": "vendor"}]' />
+</template>
+<script setup lang="ts">
+</script>`;
+    const result = await convert(input, { componentName: "QuoteAttr" });
+
+    // Should not produce unescaped double quotes inside a double-quoted attribute
+    expect(result.tsx).not.toMatch(/placeholder="[^"]*"[^"]*"/);
+    // Should use expression syntax with single quotes
+    expect(result.tsx).toMatch(/placeholder=\{/);
+  });
+});
+
+describe("R2 pattern 12: kebab-case slot scope keys quoted", () => {
+  test("slot props with kebab-case names are quoted", async () => {
+    const input = `<template>
+  <slot name="filter" :toggle-filter="toggle" :selected-items="items"></slot>
+</template>
+<script setup lang="ts">
+const toggle = () => {}
+const items = []
+</script>`;
+    const result = await convert(input, { componentName: "SlotProps" });
+
+    expect(result.tsx).toContain("'toggle-filter':");
+    expect(result.tsx).toContain("'selected-items':");
+  });
+});
+
 describe("fixture comparison", () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, "input.vue")),

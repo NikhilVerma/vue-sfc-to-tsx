@@ -13,13 +13,25 @@ export function processSlot(
   ctx: JsxContext,
   renderChildren: (node: ElementNode, ctx: JsxContext) => string,
 ): string {
+  const raw = processSlotRaw(node, ctx, renderChildren);
+  return `{${raw}}`;
+}
+
+/**
+ * Process a <slot> element into a raw JSX expression (no {} wrapping).
+ * Used by renderFullElement so conditional chains can wrap correctly.
+ */
+export function processSlotRaw(
+  node: ElementNode,
+  ctx: JsxContext,
+  renderChildren: (node: ElementNode, ctx: JsxContext) => string,
+): string {
   // Determine slot name
   let slotName = "default";
   const nameProp = node.props.find((p) => p.type === 6 && (p as any).name === "name");
   if (nameProp && nameProp.type === 6) {
     slotName = (nameProp as any).value?.content ?? "default";
   }
-  // Dynamic name via :name="expr"
   const dynamicName = node.props.find(
     (p): p is DirectiveNode =>
       p.type === 7 && p.name === "bind" && p.arg != null && (p.arg as any).content === "name",
@@ -30,33 +42,33 @@ export function processSlot(
     isDynamicName = true;
   }
 
-  // Collect slot props (bound attributes other than name)
   const slotProps: string[] = [];
   for (const prop of node.props) {
     if (prop.type === 6) {
-      // Static attribute — skip 'name'
       if ((prop as any).name === "name") continue;
-      // Other static attrs passed as slot props (unusual but possible)
       const val = (prop as any).value?.content;
       if (val != null) {
-        slotProps.push(`${(prop as any).name}: "${val}"`);
+        const propName = (prop as any).name;
+        const needsQuotes = !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(propName);
+        const safeName = needsQuotes ? `'${propName}'` : propName;
+        slotProps.push(`${safeName}: "${val}"`);
       }
     } else if (prop.type === 7 && prop.name === "bind") {
       const dir = prop as DirectiveNode;
       if (dir.arg && (dir.arg as any).content === "name") continue;
       if (!dir.arg) {
-        // v-bind="obj" spread on slot — pass as spread in slot props
         const expr = unwrapExpression(dir.exp as any, ctx);
         if (expr) slotProps.push(`...${expr}`);
         continue;
       }
       const propName = (dir.arg as any).content;
+      const needsQuotes = !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(propName);
+      const safeName = needsQuotes ? `'${propName}'` : propName;
       const expr = unwrapExpression(dir.exp as any, ctx);
-      slotProps.push(`${propName}: ${expr}`);
+      slotProps.push(`${safeName}: ${expr}`);
     }
   }
 
-  // Track that slots is used in setup context
   ctx.usedContextMembers.add("slots");
 
   const propsArg = slotProps.length > 0 ? `{ ${slotProps.join(", ")} }` : "";
@@ -69,13 +81,12 @@ export function processSlot(
 
   const call = `${slotAccess}?.(${propsArg})`;
 
-  // Check for fallback content
   const fallback = renderChildren(node, ctx);
   if (fallback.trim()) {
-    return `{${call} ?? <>${fallback}</>}`;
+    return `(${call} ?? <>${fallback}</>)`;
   }
 
-  return `{${call}}`;
+  return call;
 }
 
 /**

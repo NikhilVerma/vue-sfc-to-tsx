@@ -1,7 +1,7 @@
 import type { TemplateChildNode, ElementNode, DirectiveNode, JsxContext } from "../types";
 import { escapeJsxText, unwrapExpression } from "./utils";
 import { processConditionalChain, processVFor, findDirective } from "./control-flow";
-import { processSlot, processSlotContent, formatSlotEntries } from "./slots";
+import { processSlot, processSlotRaw, processSlotContent, formatSlotEntries } from "./slots";
 import { generateAttributes, formatAttributes } from "./attributes";
 import { processDirective } from "./directives";
 import { SELF_CLOSING_TAGS, VUE_BUILTINS } from "./utils";
@@ -110,9 +110,9 @@ function processElementNode(
 function renderFullElement(node: ElementNode, ctx: JsxContext): string {
   const tag = node.tag;
 
-  // <slot> elements
+  // <slot> elements — return raw expression without {}, since caller adds wrapping
   if (tag === "slot") {
-    return processSlot(node, ctx, renderChildrenForSlot);
+    return processSlotRaw(node, ctx, renderChildrenForSlot);
   }
 
   // <template> without control flow → fragment

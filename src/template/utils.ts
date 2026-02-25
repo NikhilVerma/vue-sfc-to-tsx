@@ -211,7 +211,13 @@ function appendRefValue(expr: string, refs: Set<string>): string {
 function isObjectShorthandPosition(before: string): boolean {
   const trimmed = before.trimEnd();
   const lastChar = trimmed[trimmed.length - 1];
-  return lastChar === "{" || lastChar === ",";
+  if (lastChar === ",") return true;
+  // `{` is shorthand only if it's NOT preceded by `$` (template literal interpolation `${`)
+  if (lastChar === "{") {
+    const secondLast = trimmed[trimmed.length - 2];
+    return secondLast !== "$";
+  }
+  return false;
 }
 
 /**
