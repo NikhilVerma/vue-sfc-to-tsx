@@ -78,24 +78,24 @@ function processElementNode(
   index: number,
   ctx: JsxContext,
 ): ElementResult {
-  // 1. Handle <slot> elements
+  // 1. Check for v-if → process conditional chain across siblings (before slot/v-for)
+  const vIf = findDirective(node, "if");
+  if (vIf) {
+    const result = processConditionalChain(siblings, index, ctx, renderFullElement);
+    return result;
+  }
+
+  // 2. Handle <slot> elements
   if (node.tag === "slot") {
     const jsx = processSlot(node, ctx, renderChildrenForSlot);
     return { jsx, consumed: 1 };
   }
 
-  // 2. Check for v-for (wraps everything, takes priority)
+  // 3. Check for v-for (wraps everything, takes priority)
   const vFor = findDirective(node, "for");
   if (vFor) {
     const jsx = processVFor(node, ctx, renderFullElement);
     return { jsx, consumed: 1 };
-  }
-
-  // 3. Check for v-if → process conditional chain across siblings
-  const vIf = findDirective(node, "if");
-  if (vIf) {
-    const result = processConditionalChain(siblings, index, ctx, renderFullElement);
-    return result;
   }
 
   // 4. Regular element rendering
@@ -109,6 +109,11 @@ function processElementNode(
  */
 function renderFullElement(node: ElementNode, ctx: JsxContext): string {
   const tag = node.tag;
+
+  // <slot> elements
+  if (tag === "slot") {
+    return processSlot(node, ctx, renderChildrenForSlot);
+  }
 
   // <template> without control flow → fragment
   if (tag === "template") {

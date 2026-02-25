@@ -145,8 +145,11 @@ export function processVFor(
   renderElement: (node: ElementNode, ctx: JsxContext) => string,
 ): string {
   const forDir = findDirective(node, "for")!;
-  const expr = forDir.exp ? rewriteTemplateGlobals((forDir.exp as any).content, ctx) : "";
-  const { iterator, iterable } = parseVForExpression(expr);
+  const rawExpr = forDir.exp ? (forDir.exp as any).content : "";
+  // Parse BEFORE rewriting globals — so the iterator variable doesn't get props. prefixed
+  const { iterator: rawIterator, iterable: rawIterable } = parseVForExpression(rawExpr);
+  const iterable = rewriteTemplateGlobals(rawIterable, ctx);
+  const iterator = rawIterator;
 
   // Check for :key binding
   const keyDir = node.props.find(

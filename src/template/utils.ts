@@ -187,7 +187,7 @@ function appendRefValue(expr: string, refs: Set<string>): string {
       // Must be inside braces, followed by `,` or `}`, and NOT preceded by `:`
       // (preceded by `:` means it's already a value in `key: value` position)
       const beforeStr = result.slice(0, offset);
-      if (objectBraceDepth(beforeStr) > 0 && !isAfterColon(beforeStr)) {
+      if (objectBraceDepth(beforeStr) > 0 && isObjectShorthandPosition(beforeStr)) {
         const afterStr = result.slice(offset + match.length);
         const afterMatch = afterStr.match(/^\s*(.)/);
         const nextCh = afterMatch ? afterMatch[1] : "";
@@ -202,10 +202,16 @@ function appendRefValue(expr: string, refs: Set<string>): string {
   return result;
 }
 
-/** Check if the text before an identifier ends with `:` (ignoring whitespace) — i.e. value position in object */
-function isAfterColon(before: string): boolean {
+/**
+ * Check if an identifier is in object shorthand position.
+ * True only when the identifier is directly after `{` or `,` (with optional whitespace).
+ * E.g. `{ count }` or `{ a, count }` — count is shorthand.
+ * But `{ key: !count }` or `fn(count)` — count is NOT shorthand.
+ */
+function isObjectShorthandPosition(before: string): boolean {
   const trimmed = before.trimEnd();
-  return trimmed.endsWith(":");
+  const lastChar = trimmed[trimmed.length - 1];
+  return lastChar === "{" || lastChar === ",";
 }
 
 /**
@@ -289,7 +295,7 @@ function prefixProps(expr: string, propNames: Set<string>): string {
       // Check if in object shorthand position: `{ variant }` or `{ variant, ... }`
       // Must be inside braces, followed by `,` or `}`, and NOT preceded by `:`
       const beforeStr = result.slice(0, offset);
-      if (objectBraceDepth(beforeStr) > 0 && !isAfterColon(beforeStr)) {
+      if (objectBraceDepth(beforeStr) > 0 && isObjectShorthandPosition(beforeStr)) {
         const afterTrimmed = after.match(/^\s*(.)/);
         const nextChar = afterTrimmed ? afterTrimmed[1] : "";
         if (nextChar === "," || nextChar === "}") {

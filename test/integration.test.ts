@@ -1110,6 +1110,143 @@ import Bar from '@/components/Bar.vue'
   });
 });
 
+describe("pattern 2: async setup when body contains await", () => {
+  test("top-level await in script setup produces async setup()", async () => {
+    const input = `<template><div>test</div></template>
+<script setup lang="ts">
+const mainStore = useMainStore();
+await mainStore.getConfig();
+</script>`;
+    const result = await convert(input, { componentName: "AsyncSetup" });
+
+    expect(result.tsx).toContain("async setup()");
+  });
+});
+
+describe("pattern 3: ref .value in negated object value position", () => {
+  test(":class object value with negation gets .value correctly", async () => {
+    const input = `<template>
+  <div :class="{ 'cursor-pointer': !disabled, 'text-red-600': danger && !disabled }">text</div>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const disabled = ref(false);
+const danger = ref(false);
+</script>`;
+    const result = await convert(input, { componentName: "NegatedRef" });
+
+    expect(result.tsx).toContain("!disabled.value");
+    expect(result.tsx).not.toContain("!disabled:");
+  });
+});
+
+describe("pattern 4: v-for with complex iterable expressions", () => {
+  test("v-for with filter expression on iterable", async () => {
+    const input = `<template>
+  <div v-for="item in items.filter(i => i.active)" :key="item.id">{{ item.name }}</div>
+</template>
+<script setup lang="ts">
+const items = ref([])
+</script>`;
+    const result = await convert(input, { componentName: "VForFilter" });
+
+    expect(result.tsx).toContain("_renderList(items.value.filter(i => i.active)");
+    expect(result.tsx).toContain("(item)");
+    expect(result.tsx).not.toContain("item in items");
+  });
+
+  test("v-for with 'of' keyword", async () => {
+    const input = `<template>
+  <div v-for="item of items" :key="item.id">{{ item.name }}</div>
+</template>
+<script setup lang="ts">
+const items = ref([])
+</script>`;
+    const result = await convert(input, { componentName: "VForOf" });
+
+    expect(result.tsx).toContain("_renderList(items.value");
+    expect(result.tsx).toContain("(item)");
+    expect(result.tsx).not.toContain("item of items");
+  });
+});
+
+describe("pattern 5: multiple JSX roots in slot content", () => {
+  test("slot with multiple root elements wraps in fragment", async () => {
+    const input = `<template>
+  <MyComp>
+    <template #stats>
+      <CompA />
+      <CompB />
+    </template>
+  </MyComp>
+</template>
+<script setup lang="ts">
+</script>`;
+    const result = await convert(input, { componentName: "MultiSlot" });
+
+    // Multiple roots in a slot should be wrapped in <>...</>
+    expect(result.tsx).toContain("<>");
+    expect(result.tsx).toContain("CompA");
+    expect(result.tsx).toContain("CompB");
+    // Should not have bare JSX elements without fragment
+    expect(result.tsx).not.toMatch(/=>\s*<CompA\s*\/><CompB/);
+  });
+});
+
+describe("pattern 8: import type on JSX component", () => {
+  test("type-only import used as JSX component becomes value import", async () => {
+    const input = `<template>
+  <StatementFuzzySearch />
+</template>
+<script setup lang="ts">
+import type { HighlightMap } from "~/components/shared/StatementFuzzySearch";
+import StatementFuzzySearch from "~/components/shared/StatementFuzzySearch";
+</script>`;
+    const result = await convert(input, { componentName: "TypeImport" });
+
+    // Default import should NOT be type-only
+    expect(result.tsx).not.toMatch(/import\s+type\s+StatementFuzzySearch/);
+    expect(result.tsx).toContain("StatementFuzzySearch");
+  });
+});
+
+describe("pattern 9: props. prefix not applied to loop variables", () => {
+  test("v-for iterator variable shadows prop name", async () => {
+    const input = `<template>
+  <div v-for="type in types" :key="type">{{ type }}</div>
+</template>
+<script setup lang="ts">
+const props = defineProps<{ type: string; types: string[] }>()
+</script>`;
+    const result = await convert(input, { componentName: "LoopVar" });
+
+    // The loop variable 'type' should NOT get props. prefix inside the loop
+    expect(result.tsx).toContain("(type)");
+    expect(result.tsx).not.toContain("(props.type)");
+  });
+});
+
+describe("pattern 10: root-level v-if/v-else with slot", () => {
+  test("root slot + v-else produces ternary", async () => {
+    const input = `<template>
+  <slot v-if="hasLoaded" />
+  <FDiv v-else align="middle-center" height="100%">
+    <FIcon source="i-loader" size="x-large" loading />
+  </FDiv>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue'
+const hasLoaded = ref(false)
+</script>`;
+    const result = await convert(input, { componentName: "SlotElse" });
+
+    // Should produce a ternary, not sequential rendering
+    expect(result.tsx).toContain("hasLoaded.value ?");
+    expect(result.tsx).toContain("slots.default");
+    expect(result.tsx).toContain("FDiv");
+  });
+});
+
 describe("fixture comparison", () => {
   const fixtureNames = readdirSync(FIXTURES_DIR).filter((name) =>
     existsSync(join(FIXTURES_DIR, name, "input.vue")),

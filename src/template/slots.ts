@@ -137,6 +137,43 @@ export function processSlotContent(
   return { slotEntries: entries, hasSlots: entries.length > 0 };
 }
 
+/**
+ * Check if slot content needs to be wrapped in a fragment.
+ * Wraps when: content has multiple root JSX elements, contains newlines,
+ * or is non-JSX text.
+ */
+function needsFragmentWrap(content: string): boolean {
+  const trimmed = content.trim();
+  // Non-JSX content — wrap it
+  if (!trimmed.startsWith("<")) return true;
+  // Contains newlines — wrap for safety
+  if (content.includes("\n")) return true;
+  // Check for multiple root elements: after the first self-closing or paired tag,
+  // there shouldn't be another `<` that starts a new element
+  // Simple heuristic: count top-level `<Tag` occurrences
+  let depth = 0;
+  let roots = 0;
+  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*|>)/g;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(trimmed)) !== null) {
+    const isClose = trimmed[m.index + 1] === "/";
+    if (isClose) {
+      depth--;
+    } else {
+      if (depth === 0) roots++;
+      // Check if self-closing
+      const endIdx = trimmed.indexOf(">", m.index);
+      if (endIdx > 0 && trimmed[endIdx - 1] === "/") {
+        // Self-closing, don't increment depth
+      } else if (!isClose) {
+        depth++;
+      }
+    }
+    if (roots > 1) return true;
+  }
+  return false;
+}
+
 export interface SlotEntry {
   name: string;
   params: string;
@@ -158,11 +195,7 @@ export function formatSlotEntries(entries: SlotEntry[]): string {
   // Multiple slots or named slots → v-slots object
   const slotParts = entries.map((entry) => {
     const params = entry.params ? `(${entry.params})` : "()";
-    const content = entry.content.includes("\n")
-      ? `<>${entry.content}</>`
-      : entry.content.trim().startsWith("<")
-        ? entry.content
-        : `<>${entry.content}</>`;
+    const content = needsFragmentWrap(entry.content) ? `<>${entry.content}</>` : entry.content;
     const needsQuotes = !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(entry.name);
     const safeName = needsQuotes ? `'${entry.name}'` : entry.name;
     return `${safeName}: ${params} => ${content}`;

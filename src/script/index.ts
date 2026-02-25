@@ -356,6 +356,11 @@ function fromScriptSetup(
     }
   }
 
+  // If the body contains top-level await, make setup async
+  if (/\bawait\b/.test(macros.body)) {
+    setupSig = `async ${setupSig}`;
+  }
+
   // Build setup body
   const bodyLines: string[] = [];
 
