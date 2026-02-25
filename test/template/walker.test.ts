@@ -175,6 +175,22 @@ describe("ref .value in object shorthand", () => {
     });
     expect(result).toContain("{ count: count.value }");
   });
+
+  test("ref as object value does NOT get shorthand expansion", () => {
+    const result = toJsx('<div :class="{ pulse: isLoading }">text</div>', {
+      refIdentifiers: new Set(["isLoading"]),
+    });
+    expect(result).toContain("{ pulse: isLoading.value }");
+  });
+});
+
+describe("props in object shorthand", () => {
+  test("prop as object value does NOT get shorthand expansion", () => {
+    const result = toJsx('<div :class="{ active: variant }">text</div>', {
+      propIdentifiers: new Set(["variant"]),
+    });
+    expect(result).toContain("{ active: props.variant }");
+  });
 });
 
 describe("template globals rewriting", () => {
