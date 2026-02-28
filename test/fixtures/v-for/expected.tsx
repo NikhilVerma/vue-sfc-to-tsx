@@ -2,14 +2,35 @@ import { defineComponent, ref } from "vue";
 
 export default defineComponent({
   setup() {
-    function _renderList(source: any, renderItem: (...args: any[]) => any): any[] {
-      if (Array.isArray(source)) return source.map(renderItem as any);
-      if (typeof source === "number")
-        return Array.from({ length: source }, (_, i) => (renderItem as any)(i + 1, i));
-      if (typeof source === "object" && source)
-        return Object.keys(source).map((key, index) =>
-          (renderItem as any)((source as any)[key], key, index),
+    function _renderList<T>(
+      source: T[],
+      renderItem: (item: T, index: number) => unknown,
+    ): unknown[];
+    function _renderList(
+      source: number,
+      renderItem: (value: number, index: number) => unknown,
+    ): unknown[];
+    function _renderList<T extends object>(
+      source: T,
+      renderItem: (value: T[keyof T], key: string, index: number) => unknown,
+    ): unknown[];
+    function _renderList(
+      source: unknown,
+      renderItem: (...args: Array<unknown>) => unknown,
+    ): Array<unknown> {
+      if (Array.isArray(source)) {
+        return source.map((item, index) => renderItem(item, index, source));
+      }
+      if (typeof source === "number") {
+        return Array.from({ length: source }, (_, i) =>
+          (renderItem as (...args: Array<unknown>) => unknown)(i + 1, i),
         );
+      }
+      if (typeof source === "object" && source) {
+        return Object.keys(source).map((key, index) =>
+          renderItem((source as Record<string, unknown>)[key], key, index),
+        );
+      }
       return [];
     }
 

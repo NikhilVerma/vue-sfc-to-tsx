@@ -16,6 +16,7 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
     propIdentifiers: new Set(),
     hasVFor: false,
     usedBuiltins: new Set(),
+    usedComponents: new Set(),
   };
 }
 
@@ -80,16 +81,22 @@ describe("generateAttributes", () => {
       expect(attrsFor('<div :key="item.id"></div>')).toBe(" key={item.id}");
     });
 
-    test("hyphenated prop name", () => {
+    test("hyphenated prop name on component is camelCased", () => {
       expect(attrsFor('<Lineage :node-size="{ width: 200, height: 52 }"></Lineage>')).toBe(
-        " node-size={{ width: 200, height: 52 }}",
+        " nodeSize={{ width: 200, height: 52 }}",
       );
     });
 
-    test("multiple hyphenated prop names", () => {
+    test("multiple hyphenated prop names on component are camelCased", () => {
       expect(attrsFor('<Lineage :children-node-size="{ width: 200 }" :gap="100"></Lineage>')).toBe(
-        " children-node-size={{ width: 200 }} gap={100}",
+        " childrenNodeSize={{ width: 200 }} gap={100}",
       );
+    });
+
+    test("hyphenated attribute on native HTML element stays kebab-case", () => {
+      // data-* and aria-* on native elements should NOT be camelCased
+      expect(attrsFor('<div :data-foo="bar"></div>')).toBe(" data-foo={bar}");
+      expect(attrsFor('<div :aria-label="label"></div>')).toBe(" aria-label={label}");
     });
 
     test('v-bind="obj" spread', () => {
@@ -97,6 +104,10 @@ describe("generateAttributes", () => {
       const result = generateAttributes(el, makeCtx());
       expect(result.spreads).toEqual(["{...attrs}"]);
       expect(formatAttributes(result)).toBe(" {...attrs}");
+    });
+
+    test("v-bind spread comes before explicit attrs so explicit attrs win", () => {
+      expect(attrsFor('<div v-bind="attrs" class="foo"></div>')).toBe(' {...attrs} class="foo"');
     });
 
     test(":class with object literal passes through as-is", () => {
@@ -125,9 +136,57 @@ describe("generateAttributes", () => {
       expect(attrsFor('<input @input="onInput" />')).toBe(" onInput={onInput}");
     });
 
-    test("multi-statement handler wraps in block body", () => {
+    test("multi-statement handler without $event uses _ parameter", () => {
       expect(attrsFor(`<Comp @view-logs="emit('viewLogs', vm.id); closeDropdown();"></Comp>`)).toBe(
-        ` onViewLogs={($event) => { emit('viewLogs', vm.id); closeDropdown(); }}`,
+        ` onViewLogs={() => { emit('viewLogs', vm.id); closeDropdown(); }}`,
+      );
+    });
+
+    test("multi-statement handler with $event keeps $event parameter", () => {
+      expect(attrsFor(`<input @change="handleChange($event); log($event.target);" />`)).toBe(
+        ` onChange={($event) => { handleChange($event); log($event.target); }}`,
+      );
+    });
+
+    test("inline call without $event uses _ parameter", () => {
+      expect(attrsFor(`<button @click="doSomething(item)"></button>`)).toBe(
+        " onClick={() => doSomething(item)}",
+      );
+    });
+
+    test("inline call with $event keeps $event parameter", () => {
+      expect(attrsFor(`<input @input="handleInput($event.target.value)" />`)).toBe(
+        " onInput={($event) => handleInput($event.target.value)}",
+      );
+    });
+
+    test("@select.prevent with no handler calls preventDefault", () => {
+      expect(attrsFor("<div @select.prevent></div>")).toBe(
+        " onSelect={($event) => { $event.preventDefault() }}",
+      );
+    });
+
+    test("@click.stop with no handler calls stopPropagation", () => {
+      expect(attrsFor("<div @click.stop></div>")).toBe(
+        " onClick={($event) => { $event.stopPropagation() }}",
+      );
+    });
+
+    test("@click.prevent.stop chains both modifier calls", () => {
+      expect(attrsFor("<div @click.prevent.stop></div>")).toBe(
+        " onClick={($event) => { $event.preventDefault(); $event.stopPropagation() }}",
+      );
+    });
+
+    test("@click.prevent with handler wraps in arrow function", () => {
+      expect(attrsFor('<button @click.prevent="handleSubmit"></button>')).toBe(
+        " onClick={($event) => { $event.preventDefault(); handleSubmit() }}",
+      );
+    });
+
+    test("@click.prevent with $event expression preserves $event", () => {
+      expect(attrsFor('<button @click.prevent="handleSubmit($event)"></button>')).toBe(
+        " onClick={($event) => { $event.preventDefault(); handleSubmit($event) }}",
       );
     });
 

@@ -10,8 +10,11 @@ export function mergeImports(existing: ImportInfo[], additional: ImportInfo[]): 
     // Use composite key: type-only and non-type-only stay separate.
     // Also, type imports with a default export stay separate from named-only type imports
     // (so `import type Foo from '...'` and `import type { Bar } from '...'` aren't merged).
+    // Namespace imports (import * as X) stay separate from named/default imports from the
+    // same source (they must remain as distinct import statements).
     const typeKey = imp.typeOnly ? (imp.defaultImport ? "type-default" : "type-named") : "value";
-    const key = `${imp.source}::${typeKey}`;
+    const nsKey = imp.namespaceImport ? "::ns" : "";
+    const key = `${imp.source}::${typeKey}${nsKey}`;
     const current = map.get(key);
     if (!current) {
       map.set(key, {

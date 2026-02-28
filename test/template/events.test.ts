@@ -15,6 +15,7 @@ function makeCtx(): JsxContext {
     propIdentifiers: new Set(),
     hasVFor: false,
     usedBuiltins: new Set(),
+    usedComponents: new Set(),
   };
 }
 

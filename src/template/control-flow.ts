@@ -48,8 +48,8 @@ export function processConditionalChain(
   while (i < siblings.length) {
     const sibling = siblings[i];
 
-    // Skip whitespace-only text nodes
-    if (isWhitespaceText(sibling)) {
+    // Skip whitespace-only text nodes and HTML comments
+    if (isWhitespaceText(sibling) || sibling.type === 3 /* COMMENT */) {
       i++;
       consumed++;
       continue;

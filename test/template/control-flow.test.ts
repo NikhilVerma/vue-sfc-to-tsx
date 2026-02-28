@@ -19,6 +19,7 @@ function makeCtx(): JsxContext {
     propIdentifiers: new Set(),
     hasVFor: false,
     usedBuiltins: new Set(),
+    usedComponents: new Set(),
   };
 }
 
@@ -93,6 +94,20 @@ describe("processConditionalChain", () => {
     expect(result.jsx).toBe("{show ? <div /> : null}");
     // Should not consume the <span>
     // consumed = 1 (v-if) + whitespace nodes
+  });
+
+  test("HTML comments between v-if and v-else-if are skipped", () => {
+    const children = getChildren(`
+      <div v-if="isLoading">loading</div>
+      <!-- Dashboard grid -->
+      <div v-else-if="data">content</div>
+      <!-- No data -->
+      <div v-else>empty</div>
+    `);
+    const idx = children.findIndex((c) => c.type === 1 && findDirective(c as ElementNode, "if"));
+
+    const result = processConditionalChain(children, idx, makeCtx(), renderElement);
+    expect(result.jsx).toBe("{isLoading ? <div /> : data ? <div /> : <div />}");
   });
 
   test("multiple v-else-if branches", () => {

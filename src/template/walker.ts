@@ -143,6 +143,14 @@ function renderFullElement(node: ElementNode, ctx: JsxContext): string {
     ctx.usedBuiltins.add(tag);
   }
 
+  // Track all PascalCase components for Nuxt auto-import (#components).
+  // For member-expression tags like EmojiPickerPrimitive.Search, track only the root
+  // name (EmojiPickerPrimitive) — the dot-suffix is not a valid import identifier.
+  if (/^[A-Z]/.test(tag) && !VUE_BUILTINS.has(tag)) {
+    const rootName = tag.includes(".") ? tag.split(".")[0] : tag;
+    ctx.usedComponents.add(rootName);
+  }
+
   // Process attributes, directives, and events
   const { attrStr, wrapShow } = processAllProps(node, ctx);
 

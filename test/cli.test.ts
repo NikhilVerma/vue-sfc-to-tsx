@@ -320,6 +320,26 @@ describe("CLI", () => {
     expect(output).toContain("Watching");
   }, 10000);
 
+  test("glob pattern excludes node_modules", async () => {
+    const subDir = join(tempDir, "glob-node-modules");
+    // A regular component that should be converted
+    await Bun.write(join(subDir, "src", "Component.vue"), SAMPLE_VUE);
+    // A component inside node_modules that should be ignored
+    await Bun.write(join(subDir, "node_modules", "some-pkg", "NodeModule.vue"), SAMPLE_VUE);
+
+    const proc = Bun.spawn(["bun", "run", CLI_PATH, "--dry-run", "**/*.vue"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      cwd: subDir,
+    });
+    const code = await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
+
+    expect(code).toBe(0);
+    expect(stdout).toContain("Component.vue");
+    expect(stdout).not.toContain("NodeModule.vue");
+  });
+
   test("--out-dir writes to specified directory", async () => {
     const inputDir = join(tempDir, "outdir-input");
     const outputDir = join(tempDir, "outdir-output");

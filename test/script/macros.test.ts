@@ -48,6 +48,109 @@ const props = withDefaults(defineProps<{ msg?: string }>(), { msg: 'hello' })
     expect(result.body).toBe("");
   });
 
+  test("resolves type alias reference in withDefaults(defineProps<TypeName>())", () => {
+    const script = `
+type Props = {
+  count: number;
+  label?: string;
+};
+
+const props = withDefaults(defineProps<Props>(), {
+  label: "items",
+});
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    // Type should be resolved to the inline body, not just the identifier
+    expect(result.props!.type).toContain("count: number");
+    expect(result.props!.type).toContain("label?: string");
+    // Type alias declaration should be removed from body
+    expect(result.body).not.toContain("type Props");
+  });
+
+  test("resolves interface declaration reference in defineProps<InterfaceName>()", () => {
+    const script = `
+interface Props {
+  title: string;
+  disabled?: boolean;
+}
+
+const props = defineProps<Props>();
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toContain("title: string");
+    expect(result.props!.type).toContain("disabled?: boolean");
+    // Interface declaration should be removed from body
+    expect(result.body).not.toContain("interface Props");
+  });
+
+  test("standalone type and interface declarations are hoisted out of body", () => {
+    const script = `
+type FIconButtonVariant = "round" | "curved" | "block";
+type FIconButtonState =
+    | "primary"
+    | "secondary"
+    | "danger"
+    | \`custom, \${string}\`;
+interface MyConfig {
+    timeout: number;
+    retries?: number;
+}
+const x = 1;
+`;
+    const result = extractMacros(script);
+
+    // Types/interfaces should be in hoistedTypes, not body
+    expect(result.hoistedTypes).toHaveLength(3);
+    expect(result.hoistedTypes[0]).toContain("FIconButtonVariant");
+    expect(result.hoistedTypes[1]).toContain("FIconButtonState");
+    expect(result.hoistedTypes[1]).toContain("`custom, ${string}`");
+    expect(result.hoistedTypes[2]).toContain("MyConfig");
+    // body should be clean
+    expect(result.body).not.toContain("FIconButtonVariant");
+    expect(result.body).not.toContain("FIconButtonState");
+    expect(result.body).not.toContain("MyConfig");
+    expect(result.body).toBe("const x = 1;");
+  });
+
+  test("resolves exported type alias used in defineProps<TypeName>()", () => {
+    // The type is declared AFTER withDefaults and is exported — it ends up in rawExports,
+    // not in body, but must still be resolved for prop detection.
+    const script = `
+const props = withDefaults(defineProps<FDivProps>(), {
+  variant: "block",
+});
+
+export type FDivProps = {
+  variant?: "block" | "curved";
+  size: number;
+};
+`;
+    const result = extractMacros(script);
+
+    expect(result.props).not.toBeNull();
+    expect(result.props!.type).toContain("variant?");
+    expect(result.props!.type).toContain("size: number");
+    // The exported type should remain in rawExports (still needs to be exported)
+    expect(result.rawExports.some((e) => e.includes("FDivProps"))).toBe(true);
+  });
+
+  test("leaves unresolvable type reference as-is", () => {
+    // When the type is imported from another file, we can't resolve it - leave as identifier
+    const script = `
+import type { UserProps } from './types';
+const props = defineProps<UserProps>();
+const count = 0;
+`;
+    const result = extractMacros(script);
+
+    expect(result.props!.type).toBe("UserProps");
+    expect(result.body).toBe("const count = 0;");
+  });
+
   test("extracts defineEmits with type parameter", () => {
     const script = `
 const emit = defineEmits<{ (e: 'update', val: string): void }>()
@@ -366,8 +469,9 @@ type FCounterCategory = "fill" | "outline";
       expect(result.rawExports[0]).toContain("FCounterStateProp");
       expect(result.rawExports[0]).toContain("`custom, ${string}`");
       expect(result.rawExports[0]).toContain(";");
-      // The non-exported type should remain in body
-      expect(result.body).toContain("FCounterCategory");
+      // The non-exported type should be hoisted, not in body
+      expect(result.hoistedTypes.some((t) => t.includes("FCounterCategory"))).toBe(true);
+      expect(result.body).not.toContain("FCounterCategory");
     });
 
     test("withDefaults works when body contains export type with template literal", () => {
@@ -389,11 +493,17 @@ type FCounterCategory = "fill" | "outline";
       const result = extractMacros(script);
 
       expect(result.props).not.toBeNull();
-      expect(result.props!.type).toBe("Props");
+      // interface Props is resolved to its inline body
+      expect(result.props!.type).toContain("size?: string");
+      expect(result.props!.type).toContain("state?: string");
       expect(result.props!.defaults).toContain('"small"');
       expect(result.rawExports).toHaveLength(1);
       expect(result.rawExports[0]).toContain("FCounterStateProp");
-      expect(result.body).toContain("FCounterCategory");
+      // non-exported type is hoisted to module level
+      expect(result.hoistedTypes.some((t) => t.includes("FCounterCategory"))).toBe(true);
+      expect(result.body).not.toContain("FCounterCategory");
+      // interface declaration removed from body
+      expect(result.body).not.toContain("interface Props");
     });
 
     test("extracts all export forms from body", () => {
@@ -635,6 +745,36 @@ describe("parsePropTypes", () => {
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("indent");
     expect(result[1].name).toBe("compactStatementLayout");
+  });
+
+  test("parses prop with multiline union type (type on next lines after colon)", () => {
+    const result = parsePropTypes(`{
+      align?:
+        | "top-left"
+        | "top-center"
+        | "top-right";
+      size: number;
+    }`);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("align");
+    expect(result[0].optional).toBe(true);
+    expect(result[0].type).toContain('"top-left"');
+    expect(result[0].type).toContain('"top-right"');
+    expect(result[1].name).toBe("size");
+  });
+
+  test("parses prop with inline union type spanning multiple lines via leading pipe", () => {
+    const result = parsePropTypes(`{
+      variant?: "block"
+        | "curved"
+        | "round";
+      title: string;
+    }`);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("variant");
+    expect(result[0].type).toContain('"block"');
+    expect(result[0].type).toContain('"round"');
+    expect(result[1].name).toBe("title");
   });
 
   test("returns empty array for empty type", () => {

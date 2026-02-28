@@ -8,10 +8,26 @@ export { mergeImports, generateImportStatements, addVueImport } from "./imports"
 export { detectAutoImports } from "./auto-imports";
 
 /** Runtime helper for v-for that handles arrays, objects, and numbers */
-const RENDER_LIST_HELPER = `function _renderList(source: any, renderItem: (...args: any[]) => any): any[] {
-  if (Array.isArray(source)) return source.map(renderItem as any)
-  if (typeof source === 'number') return Array.from({ length: source }, (_, i) => (renderItem as any)(i + 1, i))
-  if (typeof source === 'object' && source) return Object.keys(source).map((key, index) => (renderItem as any)((source as any)[key], key, index))
+const RENDER_LIST_HELPER = `function _renderList<T>(source: T[], renderItem: (item: T, index: number) => unknown): unknown[]
+function _renderList(source: number, renderItem: (value: number, index: number) => unknown): unknown[]
+function _renderList<T extends object>(source: T, renderItem: (value: T[keyof T], key: string, index: number) => unknown): unknown[]
+function _renderList(
+  source: unknown,
+  renderItem: (...args: Array<unknown>) => unknown
+): Array<unknown> {
+  if (Array.isArray(source)) {
+    return source.map((item, index) => renderItem(item, index, source))
+  }
+  if (typeof source === 'number') {
+    return Array.from({ length: source }, (_, i) =>
+      (renderItem as (...args: Array<unknown>) => unknown)(i + 1, i)
+    )
+  }
+  if (typeof source === 'object' && source) {
+    return Object.keys(source).map((key, index) =>
+      renderItem((source as Record<string, unknown>)[key], key, index)
+    )
+  }
   return []
 }`;
 
@@ -43,6 +59,14 @@ function tsTypeToRuntime(
   // Function types: Function, () => ...
   if (t === "Function" || t.includes("=>")) {
     return { expr: `Function as PropType<${originalTsType}>`, needsPropType: true };
+  }
+
+  // String literal unions: "a" | "b" | "c" → String as PropType<T>
+  if (t.includes("|")) {
+    const members = t.split("|").map((m) => m.trim());
+    if (members.length > 0 && members.every((m) => /^["'].*["']$/.test(m))) {
+      return { expr: `String as PropType<${originalTsType}>`, needsPropType: true };
+    }
   }
 
   // Everything else: Object as PropType<T>
@@ -289,6 +313,8 @@ function fromScriptSetup(
     "defineOptions",
     "defineModel",
     "withDefaults",
+    "useSlots",
+    "useAttrs",
   ]);
   for (const imp of merged) {
     if (imp.source === "vue") {
@@ -299,8 +325,11 @@ function fromScriptSetup(
   // Build defineComponent options
   const componentOptions: string[] = [];
 
-  // Props
-  const propsOption = buildPropsOption(macros.props, allImports);
+  // Props — prefer resolvedTypeBody (interface with extends) over raw type for runtime option
+  const propsForOption = macros.props
+    ? { ...macros.props, type: macros.props.resolvedTypeBody ?? macros.props.type }
+    : null;
+  const propsOption = buildPropsOption(propsForOption, allImports);
   if (propsOption) {
     componentOptions.push(`  props: ${propsOption},`);
   }
@@ -348,7 +377,13 @@ function fromScriptSetup(
   if (setupParams.length === 0 && ctxParts.length === 0) {
     setupSig = "setup()";
   } else {
-    const propsParam = hasProps ? "props" : "_props";
+    let propsParam = hasProps ? "props" : "_props";
+    // For unresolved identifier prop types (imported types we couldn't inline),
+    // annotate the setup parameter so TypeScript knows the prop shapes without
+    // needing a runtime props declaration.
+    if (hasProps && macros.props?.type && !macros.props.type.trim().startsWith("{")) {
+      propsParam = `props: ${macros.props.type}`;
+    }
     if (ctxParts.length > 0) {
       setupSig = `setup(${propsParam}, { ${ctxParts.join(", ")} })`;
     } else {
@@ -380,6 +415,12 @@ function fromScriptSetup(
     bodyLines.push(`})`);
   }
 
+  // If user named their emit variable something other than 'emit' (e.g. const emits = defineEmits()),
+  // inject an alias so body references like `useForwardPropsEmits(props, emits)` still work.
+  if (macros.emits?.variableName) {
+    bodyLines.push(`const ${macros.emits.variableName} = emit`);
+  }
+
   if (macros.body) {
     bodyLines.push(macros.body);
   }
@@ -406,6 +447,13 @@ function fromScriptSetup(
   // Hoist side-effect imports after structured imports
   if (macros.rawImports.length > 0) {
     lines.push(macros.rawImports.map((s) => s.replace(/\.vue(['"])/g, "$1")).join("\n"));
+  }
+
+  // Hoist type/interface declarations that must live at module level
+  // (e.g. `interface Props extends Base { ... }`) so the setup annotation can reference them.
+  if (macros.hoistedTypes.length > 0) {
+    if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    lines.push(macros.hoistedTypes.join("\n\n"));
   }
 
   if (lines.length > 0) {

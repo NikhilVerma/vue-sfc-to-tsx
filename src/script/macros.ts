@@ -155,6 +155,8 @@ function findMacro(
   runtimeArg?: string;
   /** If the macro was assigned via destructuring, the destructured pattern (e.g. `{ padding = "medium none", isHeader = false }`) */
   destructuredPattern?: string;
+  /** Variable name assigned to (e.g. `emits` from `const emits = defineEmits()`) */
+  varName?: string;
 } | null {
   // Look for the macro call, possibly wrapped in withDefaults for defineProps
   // Also match destructured form: const { ... } = defineProps(...)
@@ -168,11 +170,15 @@ function findMacro(
     const macroStart = m.index;
     const afterMacro = m.index + m[0].length;
 
-    // Detect destructured pattern
+    // Detect destructured pattern or simple variable name
     let destructuredPattern: string | undefined;
+    let varName: string | undefined;
     const destructMatch = m[0].match(/(?:const|let|var)\s+(\{[^}]*\})\s*=\s*/);
     if (destructMatch) {
       destructuredPattern = destructMatch[1];
+    } else {
+      const varMatch = m[0].match(/(?:const|let|var)\s+(\w+)\s*=/);
+      if (varMatch) varName = varMatch[1];
     }
 
     let typeParam: string | undefined;
@@ -211,7 +217,7 @@ function findMacro(
     let start = macroStart;
     while (start > 0 && content[start - 1] !== "\n") start--;
 
-    return { start, end, typeParam, runtimeArg, destructuredPattern };
+    return { start, end, typeParam, runtimeArg, destructuredPattern, varName };
   }
 
   return null;
@@ -379,6 +385,7 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     imports: [],
     rawImports: [],
     rawExports: [],
+    hoistedTypes: [],
   };
 
   // Extract imports first
@@ -421,6 +428,8 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     result.emits = {};
     if (de.typeParam) result.emits.type = de.typeParam;
     if (de.runtimeArg) result.emits.runtime = de.runtimeArg;
+    // Track the variable name if it differs from 'emit' (e.g. const emits = defineEmits())
+    if (de.varName && de.varName !== "emit") result.emits.variableName = de.varName;
     s.remove(de.start, de.end);
   }
 
@@ -581,7 +590,240 @@ export function extractMacros(scriptContent: string, _lang?: string): ExtractedM
     result.body = currentBody.trim();
   }
 
+  // Remove `const slots = useSlots()` — slots are provided by setup context, not composition API.
+  // Also remove `const attrs = useAttrs()` for the same reason.
+  // When removing useSlots(), ensure slots appears in the setup context.
+  const useSlotsRe = /^[ \t]*const\s+slots\s*=\s*useSlots\(\s*\)\s*;?[ \t]*\n?/m;
+  if (useSlotsRe.test(result.body)) {
+    result.body = result.body.replace(useSlotsRe, "").trim();
+    result.slots = result.slots ?? {};
+  }
+  const useAttrsRe = /^[ \t]*const\s+attrs\s*=\s*useAttrs\(\s*\)\s*;?[ \t]*\n?/m;
+  if (useAttrsRe.test(result.body)) {
+    result.body = result.body.replace(useAttrsRe, "").trim();
+  }
+
+  // If props type is a simple identifier (e.g. `Props` from `defineProps<Props>()`),
+  // resolve it by finding the `type Props = {...}` or `interface Props {...}` declaration
+  // in the body. This lets buildPropsOption generate runtime props and lets the template
+  // walker apply the `props.` prefix to prop references.
+  if (result.props?.type && !result.props.type.trim().startsWith("{")) {
+    const identifier = result.props.type.trim();
+    const resolved = resolveTypeDeclaration(identifier, result.body);
+    if (resolved) {
+      if (resolved.fullDeclaration) {
+        // Interface with `extends`: hoist full declaration to module level so
+        // the `props: Props` annotation can reference it. Keep the identifier
+        // as `props.type` for the setup annotation, but store the inline body
+        // in `resolvedTypeBody` for prop name extraction.
+        result.props = { ...result.props, resolvedTypeBody: resolved.typeBody };
+        result.hoistedTypes.push(resolved.fullDeclaration);
+        result.body = resolved.remainingBody;
+      } else {
+        result.props = { ...result.props, type: resolved.typeBody };
+        result.body = resolved.remainingBody;
+      }
+    } else {
+      // The type might be an exported declaration (moved to rawExports).
+      // Search there too — but don't remove it from rawExports since it must stay exported.
+      const rawExportsStr = result.rawExports.join("\n");
+      const exportResolved = resolveTypeDeclaration(identifier, rawExportsStr);
+      if (exportResolved) {
+        result.props = { ...result.props, type: exportResolved.typeBody };
+      }
+    }
+  }
+
+  // Hoist remaining standalone type/interface declarations to module level AFTER Props
+  // resolution, so the Props type itself has already been extracted and removed from body.
+  result.body = hoistTypeDeclarations(result.body, result.hoistedTypes);
+
   return result;
+}
+
+/**
+ * Scan a script body for standalone `type X = ...` and `interface X { ... }` declarations,
+ * remove them from the body, and push them into `hoisted` for module-level emission.
+ * Handles multiline union types, template literals with ${...}, and nested braces.
+ */
+function hoistTypeDeclarations(body: string, hoisted: string[]): string {
+  const ranges: [number, number][] = [];
+  let i = 0; // current position in body
+
+  while (i < body.length) {
+    const lineStart = i;
+
+    // Skip leading whitespace on this line
+    let contentStart = i;
+    while (
+      contentStart < body.length &&
+      (body[contentStart] === " " || body[contentStart] === "\t")
+    )
+      contentStart++;
+
+    const isType = /^type\s+\w/.test(body.slice(contentStart));
+    const isInterface = /^interface\s+\w/.test(body.slice(contentStart));
+
+    if (!isType && !isInterface) {
+      // Not a type/interface line — advance to next line
+      while (i < body.length && body[i] !== "\n") i++;
+      if (i < body.length) i++;
+      continue;
+    }
+
+    if (isInterface) {
+      // Find opening brace (may be past an extends clause on later lines)
+      let bracePos = contentStart;
+      while (bracePos < body.length && body[bracePos] !== "{") bracePos++;
+      if (bracePos >= body.length) {
+        while (i < body.length && body[i] !== "\n") i++;
+        if (i < body.length) i++;
+        continue;
+      }
+
+      const balanced = matchBalanced(body, bracePos, "{", "}");
+      if (!balanced) {
+        while (i < body.length && body[i] !== "\n") i++;
+        if (i < body.length) i++;
+        continue;
+      }
+
+      let stmtEnd = balanced.end + 1;
+      if (stmtEnd < body.length && body[stmtEnd] === ";") stmtEnd++;
+      if (stmtEnd < body.length && body[stmtEnd] === "\n") stmtEnd++;
+
+      hoisted.push(body.slice(contentStart, stmtEnd).trim());
+      ranges.push([lineStart, stmtEnd]);
+      i = stmtEnd;
+    } else {
+      // type X = ...; — scan for semicolon at depth 0, respecting strings and template literals
+      let j = contentStart;
+      let depth = 0;
+      let stmtEnd = -1;
+
+      while (j < body.length) {
+        const ch = body[j];
+
+        if (ch === "'" || ch === '"') {
+          const q = ch;
+          j++;
+          while (j < body.length && body[j] !== q) {
+            if (body[j] === "\\") j++;
+            j++;
+          }
+          j++;
+          continue;
+        }
+
+        if (ch === "`") {
+          j++;
+          while (j < body.length && body[j] !== "`") {
+            if (body[j] === "\\") {
+              j += 2;
+              continue;
+            }
+            if (body[j] === "$" && body[j + 1] === "{") {
+              j += 2;
+              let interpDepth = 1;
+              while (j < body.length && interpDepth > 0) {
+                if (body[j] === "{") interpDepth++;
+                else if (body[j] === "}") interpDepth--;
+                if (interpDepth > 0) j++;
+              }
+            }
+            j++;
+          }
+          j++;
+          continue;
+        }
+
+        if (ch === "{" || ch === "(" || ch === "[") depth++;
+        else if (ch === "}" || ch === ")" || ch === "]") depth--;
+        else if (ch === ";" && depth === 0) {
+          stmtEnd = j + 1;
+          if (stmtEnd < body.length && body[stmtEnd] === "\n") stmtEnd++;
+          break;
+        }
+
+        j++;
+      }
+
+      if (stmtEnd === -1) {
+        while (i < body.length && body[i] !== "\n") i++;
+        if (i < body.length) i++;
+        continue;
+      }
+
+      hoisted.push(body.slice(contentStart, stmtEnd).trim());
+      ranges.push([lineStart, stmtEnd]);
+      i = stmtEnd;
+    }
+  }
+
+  if (ranges.length === 0) return body;
+
+  const s = new MagicString(body);
+  for (const [start, end] of ranges) {
+    s.remove(start, end);
+  }
+  return s.toString().trim();
+}
+
+/**
+ * Find a `type Identifier = { ... }` or `interface Identifier { ... }` declaration
+ * in a script body and return the brace body plus the body with the declaration removed.
+ * Returns null if the declaration is not found.
+ * When the interface has an `extends` clause, `extendsClause` contains the full
+ * original declaration text so it can be hoisted to module level.
+ */
+function resolveTypeDeclaration(
+  identifier: string,
+  body: string,
+): {
+  typeBody: string;
+  remainingBody: string;
+  /** The full original declaration (e.g. `interface Props extends Base { ... }`) */
+  fullDeclaration?: string;
+} | null {
+  // Match `type Identifier =` or `interface Identifier` followed by optional extends then `{`
+  const re = new RegExp(
+    `(?:export\\s+)?(?:type\\s+${identifier}\\s*=|interface\\s+${identifier})\\s*`,
+  );
+  const m = re.exec(body);
+  if (!m) return null;
+
+  let braceStart = m.index + m[0].length;
+
+  // Skip past `extends ...` clause if present (interface inheritance)
+  if (body[braceStart] !== "{") {
+    const extendsMatch = body.slice(braceStart).match(/^extends\s+[^{]*/);
+    if (extendsMatch) {
+      braceStart += extendsMatch[0].length;
+      // Skip whitespace before {
+      while (braceStart < body.length && body[braceStart] !== "{") braceStart++;
+    }
+  }
+
+  if (body[braceStart] !== "{") return null;
+
+  const balanced = matchBalanced(body, braceStart, "{", "}");
+  if (!balanced) return null;
+
+  const typeBody = body.slice(braceStart, balanced.end + 1);
+
+  // Skip optional trailing semicolon
+  let stmtEnd = balanced.end + 1;
+  while (stmtEnd < body.length && (body[stmtEnd] === " " || body[stmtEnd] === "\t")) stmtEnd++;
+  if (stmtEnd < body.length && body[stmtEnd] === ";") stmtEnd++;
+
+  // Capture the full original declaration text for hoisting
+  const fullDeclaration = body.slice(m.index, stmtEnd).trim();
+  // Did the original declaration have an extends clause?
+  const hasExtends = /interface\s+\w+\s+extends\s/.test(fullDeclaration);
+
+  const remainingBody = (body.slice(0, m.index) + body.slice(stmtEnd)).replace(/^\n+/, "").trim();
+
+  return { typeBody, remainingBody, fullDeclaration: hasExtends ? fullDeclaration : undefined };
 }
 
 /** Vue APIs that return a Ref (need .value in JSX) */
@@ -661,10 +903,25 @@ export function parsePropTypes(typeStr: string): PropInfo[] {
     if (ch === "{" || ch === "(" || ch === "<") depth++;
     else if (ch === "}" || ch === ")" || ch === ">") depth--;
 
-    if (depth === 0 && (ch === ";" || ch === "\n")) {
+    if (depth === 0 && ch === ";") {
       const trimmed = current.trim();
       if (trimmed) entries.push(trimmed);
       current = "";
+    } else if (depth === 0 && ch === "\n") {
+      // Don't split if the next non-whitespace character is `|` or `&`
+      // (multiline union/intersection type continuation)
+      let lookAhead = i + 1;
+      while (lookAhead < body.length && (body[lookAhead] === " " || body[lookAhead] === "\t")) {
+        lookAhead++;
+      }
+      const nextCh = lookAhead < body.length ? body[lookAhead] : "";
+      if (nextCh === "|" || nextCh === "&") {
+        current += ch;
+      } else {
+        const trimmed = current.trim();
+        if (trimmed) entries.push(trimmed);
+        current = "";
+      }
     } else {
       current += ch;
     }

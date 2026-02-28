@@ -16,6 +16,7 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
     propIdentifiers: new Set(),
     hasVFor: false,
     usedBuiltins: new Set(),
+    usedComponents: new Set(),
   };
 }
 

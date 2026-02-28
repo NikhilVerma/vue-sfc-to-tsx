@@ -279,6 +279,52 @@ describe("mergeImports type-only separation", () => {
   });
 });
 
+describe("mergeImports namespace + named from same source", () => {
+  test("keeps namespace import separate from named import from same source", () => {
+    const imports: ImportInfo[] = [
+      {
+        source: "@/components/icons",
+        namedImports: [{ imported: "Icon", local: "Icon" }],
+        typeOnly: false,
+      },
+      {
+        source: "@/components/icons",
+        namespaceImport: "Icons",
+        namedImports: [],
+        typeOnly: false,
+      },
+    ];
+
+    const result = mergeImports(imports, []);
+
+    expect(result).toHaveLength(2);
+    expect(result.some((i) => i.namespaceImport === "Icons")).toBe(true);
+    expect(result.some((i) => i.namedImports.some((n) => n.imported === "Icon"))).toBe(true);
+  });
+
+  test("generateImportStatements emits both namespace and named import from same source", () => {
+    const imports: ImportInfo[] = [
+      {
+        source: "@/components/icons",
+        namedImports: [{ imported: "Icon", local: "Icon" }],
+        typeOnly: false,
+      },
+      {
+        source: "@/components/icons",
+        namespaceImport: "Icons",
+        namedImports: [],
+        typeOnly: false,
+      },
+    ];
+
+    const merged = mergeImports(imports, []);
+    const result = generateImportStatements(merged);
+
+    expect(result).toContain("import { Icon } from '@/components/icons'");
+    expect(result).toContain("import * as Icons from '@/components/icons'");
+  });
+});
+
 describe("addVueImport", () => {
   test("adds to existing vue import", () => {
     const imports: ImportInfo[] = [

@@ -16,6 +16,7 @@ function makeCtx(classMap?: Map<string, string>): JsxContext {
     propIdentifiers: new Set(),
     hasVFor: false,
     usedBuiltins: new Set(),
+    usedComponents: new Set(),
   };
 }
 
@@ -66,6 +67,24 @@ describe("walkChildren", () => {
     const sfc = parseSFC(`<template></template>`);
     const result = templateToJsx(sfc.templateAst!, makeCtx());
     expect(result).toBe("<></>");
+  });
+});
+
+describe("whitespace handling", () => {
+  test("trailing whitespace after interpolation is not emitted", () => {
+    expect(toJsx("<span>{{ label }} </span>")).toBe("<span>{label}</span>");
+  });
+
+  test("leading whitespace before interpolation is not emitted", () => {
+    expect(toJsx("<span> {{ label }}</span>")).toBe("<span>{label}</span>");
+  });
+
+  test("space between two interpolations is preserved", () => {
+    expect(toJsx("<span>{{ a }} {{ b }}</span>")).toBe("<span>{a} {b}</span>");
+  });
+
+  test("space between text and element is preserved", () => {
+    expect(toJsx("<span>hello <em>world</em></span>")).toBe("<span>hello <em>world</em></span>");
   });
 });
 

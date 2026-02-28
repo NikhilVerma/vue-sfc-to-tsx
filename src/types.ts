@@ -62,6 +62,8 @@ export interface ConvertOptions {
   llm?: boolean;
   /** LLM model to use (default: claude-sonnet-4-6) */
   llmModel?: string;
+  /** Nuxt mode: auto-import unresolved PascalCase components from '#components' */
+  nuxt?: boolean;
 }
 
 /** Parsed SFC descriptor with raw AST */
@@ -102,9 +104,16 @@ export interface PropInfo {
 /** Extracted macro information from script setup */
 export interface ExtractedMacros {
   /** defineProps type parameter or runtime argument */
-  props: { type?: string; runtime?: string; defaults?: string } | null;
+  props: {
+    type?: string;
+    runtime?: string;
+    defaults?: string;
+    /** Resolved inline brace body when `type` is an identifier with an extends clause.
+     *  Used for prop name extraction while `type` keeps the identifier name for annotation. */
+    resolvedTypeBody?: string;
+  } | null;
   /** defineEmits type parameter or runtime argument */
-  emits: { type?: string; runtime?: string } | null;
+  emits: { type?: string; runtime?: string; variableName?: string } | null;
   /** defineSlots type parameter */
   slots: { type?: string } | null;
   /** defineExpose argument */
@@ -115,6 +124,8 @@ export interface ExtractedMacros {
   models: ModelMacro[];
   /** The remaining script body after macro removal */
   body: string;
+  /** Type/interface declarations to hoist before defineComponent (e.g. interface Props extends Base) */
+  hoistedTypes: string[];
   /** Imports extracted from the script */
   imports: ImportInfo[];
   /** Side-effect imports (e.g. `import './polyfill'`) */
@@ -179,4 +190,6 @@ export interface JsxContext {
   hasVFor: boolean;
   /** Vue built-in components used in template (Teleport, KeepAlive, etc.) */
   usedBuiltins: Set<string>;
+  /** PascalCase component names used in template (for Nuxt auto-import) */
+  usedComponents: Set<string>;
 }

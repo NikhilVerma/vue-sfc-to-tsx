@@ -13,6 +13,7 @@ interface CliOptions {
   dryRun: boolean;
   delete: boolean;
   watch: boolean;
+  nuxt: boolean;
   help: boolean;
 }
 
@@ -27,6 +28,7 @@ Arguments:
 
 Options:
   --out-dir <dir>  Output directory (default: same directory as input)
+  --nuxt           Nuxt mode: auto-import unresolved components from '#components'
   --llm            Enable LLM fallback for unconvertible patterns
   --llm-model <m>  LLM model to use (overrides env var and default)
   --dry-run        Show what would be written without writing files
@@ -50,6 +52,7 @@ function parseArgs(argv: string[]): CliOptions {
     dryRun: false,
     delete: false,
     watch: false,
+    nuxt: false,
     help: false,
   };
 
@@ -66,6 +69,8 @@ function parseArgs(argv: string[]): CliOptions {
         process.exit(1);
       }
       opts.llmModel = args[i];
+    } else if (arg === "--nuxt") {
+      opts.nuxt = true;
     } else if (arg === "--dry-run") {
       opts.dryRun = true;
     } else if (arg === "--delete") {
@@ -112,7 +117,7 @@ async function findFiles(patterns: string[]): Promise<string[]> {
     }
     const glob = new Glob(pattern);
     for await (const path of glob.scan({ cwd: process.cwd(), absolute: true })) {
-      if (path.endsWith(".vue")) {
+      if (path.endsWith(".vue") && !path.includes("/node_modules/")) {
         files.push(path);
       }
     }
@@ -194,6 +199,7 @@ async function convertSingleFile(
       componentName,
       llm: opts.llm,
       ...(opts.llmModel ? { llmModel: opts.llmModel } : {}),
+      ...(opts.nuxt ? { nuxt: true } : {}),
     });
 
     if (result.warnings.length > 0) {

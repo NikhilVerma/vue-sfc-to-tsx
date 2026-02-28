@@ -1,6 +1,6 @@
 import type { ElementNode, AttributeNode, DirectiveNode } from "../types";
 import type { JsxContext } from "../types";
-import { toCamelCase, toJsxEventName, unwrapExpression } from "./utils";
+import { toCamelCase, toJsxEventName, unwrapExpression, isComponent } from "./utils";
 
 export interface AttributeResult {
   /** Array of JSX attribute strings (e.g. ['class="foo"', 'onClick={handler}']) */
@@ -19,6 +19,8 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
   const spreads: string[] = [];
   let staticClass: string | null = null;
   let dynamicClass: string | null = null;
+
+  const isComp = isComponent(node.tag);
 
   for (const prop of node.props) {
     if (prop.type === 6) {
@@ -43,7 +45,7 @@ export function generateAttributes(node: ElementNode, ctx: JsxContext): Attribut
         dynamicClass = unwrapExpression(directive.exp, ctx);
         continue;
       }
-      const result = generateDirectiveAttribute(directive, ctx);
+      const result = generateDirectiveAttribute(directive, ctx, isComp);
       if (result) {
         if (result.type === "spread") {
           spreads.push(result.value);
@@ -156,6 +158,7 @@ const CONTROL_FLOW_DIRECTIVES = new Set([
 function generateDirectiveAttribute(
   directive: DirectiveNode,
   ctx: JsxContext,
+  isComp: boolean = false,
 ): { type: "attr" | "spread"; value: string } | null {
   const { name } = directive;
 
@@ -165,7 +168,7 @@ function generateDirectiveAttribute(
   }
 
   if (name === "bind") {
-    return generateBindDirective(directive, ctx);
+    return generateBindDirective(directive, ctx, isComp);
   }
 
   if (name === "on") {
@@ -179,6 +182,7 @@ function generateDirectiveAttribute(
 function generateBindDirective(
   directive: DirectiveNode,
   ctx: JsxContext,
+  isComp: boolean = false,
 ): { type: "attr" | "spread"; value: string } | null {
   const { arg, exp, modifiers } = directive;
   const expr = unwrapExpression(exp, ctx);
@@ -211,10 +215,13 @@ function generateBindDirective(
     return { type: "attr", value: `key={${expr}}` };
   }
 
-  // .prop modifier → use the prop name directly
   // .camel modifier → camelCase
+  // On components, Vue auto-converts kebab-case prop names to camelCase
   let finalName = propName;
-  if (modifiers.some((m) => (m as any).content === "camel")) {
+  if (
+    modifiers.some((m) => (m as any).content === "camel") ||
+    (isComp && finalName.includes("-"))
+  ) {
     finalName = toCamelCase(finalName);
   }
 
@@ -274,32 +281,67 @@ function splitObjectEntries(str: string): string[] {
   return entries;
 }
 
+/** Event modifiers that map to imperative DOM calls */
+const EVENT_MODIFIER_CALLS: Record<string, string> = {
+  prevent: "$event.preventDefault()",
+  stop: "$event.stopPropagation()",
+  self: "if ($event.target !== $event.currentTarget) return",
+};
+
 function generateOnDirective(
   directive: DirectiveNode,
   ctx: JsxContext,
 ): { type: "attr"; value: string } | null {
-  const { arg, exp } = directive;
+  const { arg, exp, modifiers } = directive;
   const expr = unwrapExpression(exp, ctx);
   const eventName = arg ? unwrapExpression(arg as any) : "";
 
   if (!eventName) return null;
 
-  const jsxName = toJsxEventName(eventName);
+  // Modifier strings (stored as objects with .content in the Vue AST)
+  const mods = modifiers.map((m: any) => (typeof m === "string" ? m : (m.content ?? "")));
+
+  // .capture → append "Capture" to the JSX event name
+  const jsxName = toJsxEventName(eventName) + (mods.includes("capture") ? "Capture" : "");
+
+  // Collect calls for supported DOM modifiers (prevent, stop, self)
+  const modCalls = mods.flatMap((m) => EVENT_MODIFIER_CALLS[m] ?? []);
 
   if (!expr) {
-    // @click with no handler — unlikely but handle gracefully
+    if (modCalls.length > 0) {
+      return {
+        type: "attr",
+        value: `${jsxName}={($event) => { ${modCalls.join("; ")} }}`,
+      };
+    }
     return { type: "attr", value: `${jsxName}={() => {}}` };
   }
 
-  // Simple identifier or member expression: onClick={handler}
-  // Inline expression (contains parentheses, operators, etc.): onClick={() => expr}
+  // With modifiers: always wrap in arrow function so we can prepend the modifier calls
+  if (modCalls.length > 0) {
+    const handlerCall = isSimpleExpression(expr)
+      ? `${expr}()` // named handler — call without args (event already handled by modifiers)
+      : isMultiStatement(expr)
+        ? wrapInBlock(expr)
+        : expr;
+    const usesEvent = expr.includes("$event");
+    const param = usesEvent ? "$event" : "$event"; // always $event since modifier calls need it
+    return {
+      type: "attr",
+      value: `${jsxName}={(${param}) => { ${[...modCalls, handlerCall].join("; ")} }}`,
+    };
+  }
+
+  // No modifiers: existing behaviour
   if (isSimpleExpression(expr) || isFunctionExpression(expr)) {
     return { type: "attr", value: `${jsxName}={${expr}}` };
   }
 
-  // If it looks like a function call: @click="doSomething($event)"
   const body = isMultiStatement(expr) ? wrapInBlock(expr) : expr;
-  return { type: "attr", value: `${jsxName}={($event) => ${body}}` };
+  if (expr.includes("$event")) {
+    return { type: "attr", value: `${jsxName}={($event) => ${body}}` };
+  }
+  return { type: "attr", value: `${jsxName}={() => ${body}}` };
 }
 
 /** Check if an expression contains multiple statements (semicolons outside strings) */
@@ -352,7 +394,8 @@ function isFunctionExpression(expr: string): boolean {
  * Returns empty string if no attributes.
  */
 export function formatAttributes(result: AttributeResult): string {
-  const all = [...result.attrs, ...result.spreads];
+  // Spreads first so that explicit attrs that follow take precedence in JSX
+  const all = [...result.spreads, ...result.attrs];
   if (all.length === 0) return "";
   return " " + all.join(" ");
 }

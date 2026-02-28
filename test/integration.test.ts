@@ -1360,3 +1360,370 @@ describe("fixture comparison", () => {
     });
   }
 });
+
+describe("bug: type alias props not resolved", () => {
+  test("type alias used in defineProps<TypeName>() generates runtime props", async () => {
+    const input = `
+<script setup lang="ts">
+type Props = {
+  count: number;
+  label?: string;
+};
+
+const props = withDefaults(defineProps<Props>(), {
+  label: "items",
+});
+</script>
+
+<template>
+  <span>{{ count }} {{ label }}</span>
+</template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    // Should generate runtime props option in defineComponent
+    expect(result.tsx).toContain("props:");
+    expect(result.tsx).toContain("count");
+    expect(result.tsx).toContain("label");
+    // Template should use props. prefix
+    expect(result.tsx).toContain("props.count");
+    expect(result.tsx).toContain("props.label");
+    // Should NOT use bare name without props. prefix in JSX
+    expect(result.tsx).not.toMatch(/\{count\}/);
+    expect(result.tsx).not.toMatch(/\{label\}/);
+    // Type alias should NOT appear inside setup()
+    expect(result.tsx).not.toContain("type Props =");
+  });
+
+  test("interface used in defineProps<InterfaceName>() generates runtime props", async () => {
+    const input = `
+<script setup lang="ts">
+interface Props {
+  title: string;
+  disabled?: boolean;
+}
+
+const props = defineProps<Props>();
+</script>
+
+<template>
+  <button :disabled="disabled">{{ title }}</button>
+</template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).toContain("props:");
+    expect(result.tsx).toContain("props.title");
+    expect(result.tsx).toContain("props.disabled");
+    expect(result.tsx).not.toContain("interface Props");
+  });
+});
+
+describe("--nuxt flag: auto-import components from #components", () => {
+  test("unimported PascalCase components are imported from #components", async () => {
+    const input = `
+<script setup lang="ts">
+import { ref } from "vue";
+const count = ref(0);
+</script>
+
+<template>
+  <FDiv>
+    <FIconButton icon="plus" @click="count++" />
+    <span>{{ count }}</span>
+  </FDiv>
+</template>
+`;
+    const result = await convert(input, { componentName: "Test", nuxt: true });
+
+    expect(result.tsx).toContain("import { FDiv, FIconButton } from '#components'");
+  });
+
+  test("already-imported components are not duplicated in #components", async () => {
+    const input = `
+<script setup lang="ts">
+import FDiv from "@/components/FDiv.vue";
+</script>
+
+<template>
+  <FDiv><FButton /></FDiv>
+</template>
+`;
+    const result = await convert(input, { componentName: "Test", nuxt: true });
+
+    // FDiv is already imported — only FButton should come from #components
+    expect(result.tsx).not.toMatch(/FDiv.*#components/);
+    expect(result.tsx).toContain("import { FButton } from '#components'");
+  });
+
+  test("member-expression component tags use root name in #components import", async () => {
+    const input = `
+<script setup lang="ts">
+import EmojiPickerPrimitive from "vue-frimousse";
+</script>
+
+<template>
+  <EmojiPickerPrimitive.Search />
+  <EmojiPickerPrimitive.ActiveEmoji />
+  <FButton />
+</template>
+`;
+    const result = await convert(input, { componentName: "Test", nuxt: true });
+
+    // EmojiPickerPrimitive is already imported — dotted sub-components must not appear
+    // in the #components import statement (they're not valid named import identifiers)
+    expect(result.tsx).not.toMatch(/import\s*\{[^}]*EmojiPickerPrimitive\./);
+    // The dotted names are still valid as JSX element tags in the output
+    expect(result.tsx).toContain("<EmojiPickerPrimitive.Search");
+    // Only truly unimported components go into #components
+    expect(result.tsx).toContain("import { FButton } from '#components'");
+  });
+
+  test("without --nuxt flag no #components import is added", async () => {
+    const input = `
+<template><FDiv /></template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).not.toContain("#components");
+  });
+});
+
+describe("bug: interface Props extends Base — hoisting and prop detection", () => {
+  test("interface with extends is hoisted before defineComponent, not inside setup", async () => {
+    const input = `
+<script setup lang="ts">
+import type { PrimitiveProps } from "reka-ui";
+
+interface Props extends PrimitiveProps {
+  variant?: "default" | "outline";
+  size?: "sm" | "lg";
+}
+
+const props = withDefaults(defineProps<Props>(), { as: "button" });
+</script>
+
+<template>
+  <div :variant="variant" :size="size" :as="as" />
+</template>
+`;
+    const result = await convert(input, { componentName: "Button" });
+
+    // Interface should be at module level, before defineComponent
+    const defineComponentIdx = result.tsx.indexOf("defineComponent(");
+    const interfaceIdx = result.tsx.indexOf("interface Props");
+    expect(interfaceIdx).toBeGreaterThan(-1);
+    expect(interfaceIdx).toBeLessThan(defineComponentIdx);
+
+    // Props from inline body + defaults get props. prefix
+    expect(result.tsx).toContain("props.variant");
+    expect(result.tsx).toContain("props.size");
+    expect(result.tsx).toContain("props.as");
+
+    // Setup has type annotation
+    expect(result.tsx).toContain("props: Props");
+
+    // Interface should NOT be inside setup body
+    const setupIdx = result.tsx.indexOf("setup(");
+    const interfaceInSetupIdx = result.tsx.indexOf("interface Props", setupIdx);
+    expect(interfaceInSetupIdx).toBe(-1);
+  });
+});
+
+describe("bug: imported prop type — props. prefix and type annotation", () => {
+  test("withDefaults defaults keys used as prop names when type is imported", async () => {
+    const input = `
+<script setup lang="ts">
+import type { SidebarProps } from "./types";
+
+const props = withDefaults(defineProps<SidebarProps>(), {
+  side: "left",
+  variant: "sidebar",
+  collapsible: "offcanvas",
+});
+</script>
+
+<template>
+  <div :data-side="side" :data-variant="variant" :data-collapsible="collapsible" />
+</template>
+`;
+    const result = await convert(input, { componentName: "Sidebar" });
+
+    // Props with defaults should get props. prefix in JSX
+    expect(result.tsx).toContain("props.side");
+    expect(result.tsx).toContain("props.variant");
+    expect(result.tsx).toContain("props.collapsible");
+    // Type annotation on setup so TypeScript knows the prop shapes
+    expect(result.tsx).toContain("props: SidebarProps");
+  });
+
+  test("unresolved prop type gets type annotation on setup even without defaults", async () => {
+    const input = `
+<script setup lang="ts">
+import type { ButtonProps } from "./types";
+
+const props = defineProps<ButtonProps>();
+</script>
+
+<template><button /></template>
+`;
+    const result = await convert(input, { componentName: "Button" });
+
+    expect(result.tsx).toContain("props: ButtonProps");
+  });
+});
+
+describe("bug: multiline union type prop missing props. prefix", () => {
+  test("prop with type on next line after colon gets props. prefix in JSX", async () => {
+    const input = `
+<script setup lang="ts">
+const props = defineProps<{
+  align?:
+    | "top-left"
+    | "top-center"
+    | "top-right";
+  size: number;
+}>();
+</script>
+
+<template>
+  <div :align="align" :size="size" />
+</template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).toContain("props.align");
+    expect(result.tsx).toContain("props.size");
+    expect(result.tsx).not.toMatch(/align=\{align\}/);
+  });
+});
+
+describe("bug: emits variable aliased to non-'emit' name", () => {
+  test("const emits = defineEmits() body references resolve via alias", async () => {
+    const input = `
+<script setup lang="ts">
+import { useForwardPropsEmits } from "reka-ui";
+
+const props = defineProps<{ open: boolean }>();
+const emits = defineEmits<{ close: [] }>();
+const forwarded = useForwardPropsEmits(props, emits);
+</script>
+
+<template><div /></template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    // The body reference to 'emits' should be usable - either via alias or rewrite
+    expect(result.tsx).toContain("useForwardPropsEmits(props, emits)");
+    // An alias 'const emits = emit' should be injected
+    expect(result.tsx).toContain("const emits = emit");
+  });
+});
+
+describe("bug: useSlots() should be removed from setup body", () => {
+  test("const slots = useSlots() is removed", async () => {
+    const input = `
+<script setup lang="ts">
+import { useSlots } from "vue";
+const slots = useSlots();
+</script>
+
+<template><slot /></template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).not.toContain("useSlots");
+    expect(result.tsx).not.toContain("const slots =");
+    // slots should still be in the setup context
+    expect(result.tsx).toMatch(/setup\([^)]*\{[^}]*slots/);
+  });
+
+  test("useSlots import is removed when the only usage is stripped", async () => {
+    const input = `
+<script setup lang="ts">
+import { useSlots } from "vue";
+const slots = useSlots();
+</script>
+
+<template><slot /></template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    // useSlots should not appear in imports either
+    expect(result.tsx).not.toContain("useSlots");
+  });
+});
+
+describe("bug: exported type alias props not resolved", () => {
+  test("export type used in defineProps<TypeName>() generates runtime props and props. prefix", async () => {
+    const input = `
+<script setup lang="ts">
+const props = withDefaults(defineProps<FDivProps>(), {
+  variant: "block",
+});
+
+export type FDivProps = {
+  variant?: "block" | "curved";
+  size: number;
+};
+</script>
+
+<template>
+  <div :data-variant="variant">{{ size }}</div>
+</template>
+`;
+    const result = await convert(input, { componentName: "FDiv" });
+
+    // Runtime props generated from the exported type
+    expect(result.tsx).toContain("props:");
+    expect(result.tsx).toContain("variant");
+    expect(result.tsx).toContain("size");
+    // Template uses props. prefix
+    expect(result.tsx).toContain("props.variant");
+    expect(result.tsx).toContain("props.size");
+    // Export preserved outside defineComponent
+    expect(result.tsx).toContain("export type FDivProps");
+  });
+});
+
+describe("bug: string union prop type uses Object instead of String", () => {
+  test("string literal union prop type uses String as PropType<...>", async () => {
+    const input = `
+<script setup lang="ts">
+const props = defineProps<{
+  category: "fill" | "outline" | "transparent" | "packed"
+  size?: "small" | "medium" | "large"
+}>()
+</script>
+
+<template><div>{{ category }}</div></template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).toContain(
+      'String as PropType<"fill" | "outline" | "transparent" | "packed">',
+    );
+    expect(result.tsx).toContain('String as PropType<"small" | "medium" | "large">');
+    expect(result.tsx).not.toContain('Object as PropType<"fill"');
+    expect(result.tsx).not.toContain('Object as PropType<"small"');
+  });
+});
+
+describe("bug: named import dropped when namespace import exists from same module", () => {
+  test("preserves named import alongside namespace import from same module", async () => {
+    const input = `
+<script setup lang="ts">
+import { Icon } from "@/components/icons";
+import * as Icons from "@/components/icons";
+</script>
+
+<template>
+  <Icon :icon-node="Icons.home" />
+</template>
+`;
+    const result = await convert(input, { componentName: "Test" });
+
+    expect(result.tsx).toContain("import { Icon }");
+    expect(result.tsx).toContain("import * as Icons");
+  });
+});
